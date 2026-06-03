@@ -1,0 +1,24 @@
+[project]
+name = "flare-pfi-sorting"
+version = "0.1.0"
+description = "Sort drone building-inspection images into runs using camera pitch metadata."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Flare PFI Sorting" }]
+keywords = ["drone", "inspection", "exif", "xmp", "image-sorting"]
+
+[project.scripts]
+pfi-sort = "pfi_sorter.cli:main"
+pfi-sort-web = "pfi_sorter.web:main"
+
+[project.gui-scripts]
+pfi-sort-gui = "pfi_sorter.web:main"
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
