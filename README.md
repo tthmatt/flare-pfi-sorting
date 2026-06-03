@@ -18,6 +18,33 @@ The sorter looks for common embedded pitch fields used by drone vendors and meta
 
 Both `90` and `-90` are treated as pitched down because different vendors use different signs. The default tolerance is `2` degrees, so `-89.4` and `91.2` count as down-facing markers.
 
+## Web GUI for non-technical users
+
+The easiest way to use the sorter is the local web interface. It opens a browser page where the user can paste the source image folder and the destination folder, choose copy or move, preview the result, and start sorting with one button.
+
+Start the GUI by double-clicking `launch_sorter.py` from this repository, or run it directly if you are already in a terminal:
+
+```bash
+python -m pfi_sorter.web
+```
+
+After installing the package, the GUI can also be launched with either installed shortcut command:
+
+```bash
+pfi-sort-web
+# or
+pfi-sort-gui
+```
+
+The page runs locally at `http://127.0.0.1:8765/` by default and opens your browser automatically. It does not upload images to the internet; it calls the same local sorting engine used by the command-line tool.
+
+### GUI workflow
+
+1. Paste the full path to the folder containing the drone images.
+2. Paste the full path where sorted folders should be created.
+3. Leave **Copy files** selected unless you intentionally want originals moved.
+4. Optionally enable **Preview only** to confirm the folder plan without writing files.
+5. Click **Sort inspection images**.
 ## Installation
 
 Run directly from this repository:

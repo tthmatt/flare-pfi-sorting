@@ -10,6 +10,10 @@ keywords = ["drone", "inspection", "exif", "xmp", "image-sorting"]
 
 [project.scripts]
 pfi-sort = "pfi_sorter.cli:main"
+pfi-sort-web = "pfi_sorter.web:main"
+
+[project.gui-scripts]
+pfi-sort-gui = "pfi_sorter.web:main"
 
 [tool.pytest.ini_options]
 addopts = "-q"
