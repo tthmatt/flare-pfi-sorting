@@ -18,7 +18,6 @@ The sorter looks for common embedded pitch fields used by drone vendors and meta
 
 Both `90` and `-90` are treated as pitched down because different vendors use different signs. The default tolerance is `2` degrees, so `-89.4` and `91.2` count as down-facing markers.
 
-
 ## Web GUI for non-technical users
 
 The easiest way to use the sorter is the local web interface. It opens a browser page where the user can paste the source image folder and the destination folder, choose copy or move, preview the result, and start sorting with one button.
@@ -46,7 +45,6 @@ The page runs locally at `http://127.0.0.1:8765/` by default and opens your brow
 3. Leave **Copy files** selected unless you intentionally want originals moved.
 4. Optionally enable **Preview only** to confirm the folder plan without writing files.
 5. Click **Sort inspection images**.
-
 ## Installation
 
 Run directly from this repository:
