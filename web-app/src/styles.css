@@ -352,10 +352,16 @@ th {
 .thumb {
   background: #eef2f7;
   border-radius: 10px;
+  display: block;
+  height: 90px;
+  object-fit: cover;
+  width: 100%;
+}
+
+.thumb-fallback {
   color: #667085;
   display: grid;
   font-weight: 900;
-  height: 90px;
   place-items: center;
 }
 
