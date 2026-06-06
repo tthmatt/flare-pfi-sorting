@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import JSZip from 'jszip';
 
 const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'tif', 'tiff', 'png', 'dng']);
+const BROWSER_PREVIEW_EXTENSIONS = new Set(['jpg', 'jpeg', 'png']);
 const METADATA_READ_LIMIT = 2 * 1024 * 1024;
 
 const PITCH_PATTERNS = [
@@ -17,9 +18,17 @@ const DATE_PATTERNS = [
   /(?:xmp:)?CreateDate\s*=\s*["']([^"']+)["']/i,
 ];
 
+function getFileExtension(file) {
+  return file.name.split('.').pop()?.toLowerCase() || '';
+}
+
 function isImageFile(file) {
-  const extension = file.name.split('.').pop()?.toLowerCase();
+  const extension = getFileExtension(file);
   return extension ? IMAGE_EXTENSIONS.has(extension) : false;
+}
+
+function canPreviewInBrowser(file) {
+  return BROWSER_PREVIEW_EXTENSIONS.has(getFileExtension(file));
 }
 
 function getDisplayPath(file) {
@@ -398,7 +407,7 @@ function Preview({ groups }) {
       <div className="preview-grid">
         {items.map((item) => (
           <article key={`${item.groupName}-${getDisplayPath(item.file)}`} className="preview-card">
-            <div className="thumb">IMG</div>
+            <ImageThumbnail file={item.file} />
             <strong>{getFileName(item.file)}</strong>
             <span>{item.groupName}</span>
             <span>{formatPitch(item.pitch)}{item.startsNewFolder ? ' • starts folder' : ''}</span>
@@ -406,5 +415,40 @@ function Preview({ groups }) {
         ))}
       </div>
     </section>
+  );
+}
+
+function ImageThumbnail({ file }) {
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [hasPreviewError, setHasPreviewError] = useState(false);
+
+  useEffect(() => {
+    setHasPreviewError(false);
+
+    if (!canPreviewInBrowser(file)) {
+      setPreviewUrl(null);
+      return undefined;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
+
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [file]);
+
+  if (!previewUrl || hasPreviewError) {
+    return <div className="thumb thumb-fallback">IMG</div>;
+  }
+
+  return (
+    <img
+      className="thumb"
+      src={previewUrl}
+      alt={`Preview of ${getFileName(file)}`}
+      loading="lazy"
+      onError={() => setHasPreviewError(true)}
+    />
   );
 }
