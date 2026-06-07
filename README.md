@@ -1,3 +1,5 @@
+https://flare-pfi-sorting.vercel.app/
+
 # Flare PFI Sorting
 
 A dependency-free Python command-line tool for sorting drone building-inspection images into inspection run folders. The sorter reads embedded EXIF/XMP-style metadata and starts a new folder whenever the camera or gimbal pitch is detected as straight down (approximately 90 degrees).
