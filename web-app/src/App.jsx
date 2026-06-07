@@ -279,9 +279,9 @@ export default function App() {
   return (
     <main className="app-shell">
       <section className="hero">
-        <a className="brand-lockup" href="/" aria-label="Flare Dynamics home">
+        <div className="brand-lockup">
           <img src={flareLogo} alt="Flare Dynamics" />
-        </a>
+        </div>
         <div>
           <p className="eyebrow">Flare Dynamics</p>
           <h1>PFI Drone Image Sorter</h1>
