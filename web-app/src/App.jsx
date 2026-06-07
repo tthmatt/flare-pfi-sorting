@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import JSZip from 'jszip';
+import flareLogo from './assets/flare-dynamics-logo.svg';
 
 const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'tif', 'tiff', 'png', 'dng']);
 const BROWSER_PREVIEW_EXTENSIONS = new Set(['jpg', 'jpeg', 'png']);
@@ -216,7 +217,7 @@ export default function App() {
   const [settings, setSettings] = useState({
     tolerance: 2,
     markerPitch: -90,
-    folderPrefix: 'inspection_run',
+    folderPrefix: 'flare_inspection',
     sortBy: 'filename',
     keepFolderPaths: false,
   });
@@ -278,10 +279,13 @@ export default function App() {
   return (
     <main className="app-shell">
       <section className="hero">
-        <div className="brand-mark">⌘</div>
+        <div className="brand-lockup">
+          <img src={flareLogo} alt="Flare Dynamics" />
+        </div>
         <div>
-          <h1>Drone Image Sorter</h1>
-          <p>PFI inspection photo grouping. Images are processed locally in your browser and exported as a ZIP.</p>
+          <p className="eyebrow">Flare Dynamics</p>
+          <h1>PFI Drone Image Sorter</h1>
+          <p>Flare Dynamics inspection photo grouping. Images are processed locally in your browser and exported as a ZIP.</p>
         </div>
       </section>
 
