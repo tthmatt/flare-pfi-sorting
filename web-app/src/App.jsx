@@ -401,7 +401,7 @@ function FolderTable({ groups }) {
 }
 
 function Preview({ groups }) {
-  const items = groups.flatMap((group) => group.files.slice(0, 6).map((item) => ({ ...item, groupName: group.name }))).slice(0, 18);
+  const items = groups.flatMap((group) => group.files.map((item) => ({ ...item, groupName: group.name })));
   return (
     <section className="panel">
       <div className="panel-heading">

@@ -41,3 +41,11 @@ def test_render_page_contains_no_command_line_workflow():
     assert "Sort inspection images" in html
     assert "no command line needed" in html
     assert "Preview only" in html
+
+
+def test_react_preview_includes_every_group_file():
+    source = Path("web-app/src/App.jsx").read_text()
+
+    assert "group.files.map((item) => ({ ...item, groupName: group.name }))" in source
+    assert "group.files.slice(0, 6)" not in source
+    assert ")).slice(0, 18)" not in source
