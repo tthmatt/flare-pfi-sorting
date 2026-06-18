@@ -36,6 +36,7 @@ class WebSortRequest:
     recursive: bool
     dry_run: bool
     folder_prefix: str
+    skip_markers: bool
 
     def to_options(self) -> SortOptions:
         return SortOptions(
@@ -47,6 +48,7 @@ class WebSortRequest:
             recursive=self.recursive,
             dry_run=self.dry_run,
             folder_prefix=self.folder_prefix,
+            skip_markers=self.skip_markers,
         )
 
 
@@ -166,6 +168,7 @@ def parse_sort_request(form: dict[str, str]) -> WebSortRequest:
         recursive=form.get("recursive") == "on",
         dry_run=form.get("dry_run") == "on",
         folder_prefix=folder_prefix,
+        skip_markers=form.get("skip_markers") == "on",
     )
 
 
@@ -271,6 +274,7 @@ def render_page(
         <div class="options">
           <label class="check"><input type="checkbox" name="recursive" {_checked(values, 'recursive')}> <span><strong>Include subfolders</strong><br><span class="hint">Scan nested folders under the source folder.</span></span></label>
           <label class="check"><input type="checkbox" name="dry_run" {_checked(values, 'dry_run')}> <span><strong>Preview only</strong><br><span class="hint">Show what would happen without copying or moving any files.</span></span></label>
+          <label class="check"><input type="checkbox" name="skip_markers" {_checked(values, 'skip_markers')}> <span><strong>Remove pitched-down marker photos from output</strong><br><span class="hint">They still split folders, but they will not be copied or moved into the sorted folders.</span></span></label>
         </div>
         <div class="actions">
           <button type="submit">Sort inspection images</button>
@@ -309,6 +313,12 @@ def _render_result(result: SortResult | None) -> str:
     if result is None:
         return ""
     if not result.images:
+        if result.skipped:
+            return (
+                '<section class="card"><h2>Results</h2>'
+                f'<p>Skipped {len(result.skipped)} pitched-down marker image(s). No output files were created.</p>'
+                '</section>'
+            )
         return '<section class="card"><h2>Results</h2><p>No supported images were found in the selected folder.</p></section>'
 
     rows = []
@@ -324,10 +334,14 @@ def _render_result(result: SortResult | None) -> str:
             "</tr>"
         )
 
+    skipped_note = ""
+    if result.skipped:
+        skipped_note = f" Skipped {len(result.skipped)} pitched-down marker image(s)."
+
     return (
         '<section class="card">'
         '<h2>Results</h2>'
-        f'<p>Processed {len(result.images)} images into {result.folder_count} folders.</p>'
+        f'<p>Processed {len(result.images)} images into {result.folder_count} folders.{skipped_note}</p>'
         '<table><thead><tr><th>Marker</th><th>Pitch</th><th>Source</th><th>Destination</th></tr></thead>'
         f'<tbody>{"".join(rows)}</tbody></table>'
         '</section>'
