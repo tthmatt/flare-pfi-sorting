@@ -55,6 +55,7 @@ class SortOptions:
     recursive: bool = False
     dry_run: bool = False
     folder_prefix: str = "inspection_run"
+    skip_markers: bool = False
 
 
 @dataclass
@@ -123,6 +124,8 @@ def sort_images(options: SortOptions) -> SortResult:
     A new run starts each time an image pitch is detected as approximately
     straight down (absolute pitch near 90 degrees). With the default
     ``marker_policy``, that marker image is placed in the newly-created run.
+    Set ``skip_markers`` to keep using pitched-down images as split markers
+    without writing those marker images to the output folders.
     """
 
     if options.action not in {"copy", "move"}:
@@ -135,12 +138,22 @@ def sort_images(options: SortOptions) -> SortResult:
     result = SortResult()
     images = discover_images(options.input_dir, options.recursive)
     run_number = 0
+    pending_new_folder = False
 
     for source in images:
         pitch = read_pitch_degrees(source)
         starts_new_folder = _is_downward_pitch(pitch, options.tolerance)
 
-        if run_number == 0 or (starts_new_folder and options.marker_policy == "new-folder"):
+        if starts_new_folder and options.skip_markers:
+            result.skipped.append(source)
+            if result.images:
+                pending_new_folder = True
+            continue
+
+        if pending_new_folder:
+            run_number += 1
+            pending_new_folder = False
+        elif run_number == 0 or (starts_new_folder and options.marker_policy == "new-folder"):
             run_number += 1
         elif starts_new_folder and options.marker_policy == "same-folder":
             # The marker closes the current folder; the next image starts a new one.
