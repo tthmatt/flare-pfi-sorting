@@ -22,7 +22,7 @@ Both `90` and `-90` are treated as pitched down because different vendors use di
 
 ## Web GUI for non-technical users
 
-The easiest way to use the sorter is the local web interface. It opens a browser page where the user can paste the source image folder and the destination folder, choose copy or move, preview the result, and start sorting with one button.
+The easiest way to use the sorter is the local web interface. It opens a browser page where the user can paste the source image folder and the destination folder, choose copy or move, preview the result, optionally skip marker images in the sorted output, and start sorting with one button.
 
 Start the GUI by double-clicking `launch_sorter.py` from this repository, or run it directly if you are already in a terminal:
 
@@ -45,8 +45,9 @@ The page runs locally at `http://127.0.0.1:8765/` by default and opens your brow
 1. Paste the full path to the folder containing the drone images.
 2. Paste the full path where sorted folders should be created.
 3. Leave **Copy files** selected unless you intentionally want originals moved.
-4. Optionally enable **Preview only** to confirm the folder plan without writing files.
-5. Click **Sort inspection images**.
+4. Optionally enable **Skip pitched-down marker photos in output** to use marker photos only as split points.
+5. Optionally enable **Preview only** to confirm the folder plan without writing files.
+6. Click **Sort inspection images**.
 ## Installation
 
 Run directly from this repository:
@@ -91,6 +92,14 @@ sorted-images/
     DJI_0004.JPG
 ```
 
+To use pitched-down images only as folder split markers and skip them in the sorted output, add `--skip-markers`:
+
+```bash
+pfi-sort ./input-images ./sorted-images --skip-markers
+```
+
+With the example above, the output would skip `DJI_0002.JPG` and `DJI_0004.JPG` while still placing `DJI_0003.JPG` in `inspection_run_002`.
+
 ### Options
 
 - `--move`: move files instead of copying them.
@@ -99,6 +108,7 @@ sorted-images/
 - `--tolerance DEGREES`: change how close pitch must be to 90 degrees. Default: `2.0`.
 - `--folder-prefix NAME`: change folder names from `inspection_run_001` to `NAME_001`.
 - `--marker-policy same-folder`: keep a pitched-down marker in the current folder and start the following image in the next folder.
+- `--skip-markers`: use pitched-down marker photos to split folders, but do not copy or move those marker photos into the output folders.
 
 ## Development
 
