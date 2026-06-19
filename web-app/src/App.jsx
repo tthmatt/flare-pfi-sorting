@@ -118,23 +118,38 @@ function buildGroups(analyses, settings) {
   const prefix = safePathPart(settings.folderPrefix);
   const groups = [];
   let currentGroup = null;
+  let pendingNewGroup = false;
+  let pendingMarkerPitch = null;
+  let skippedMarkerCount = 0;
 
   for (const item of ordered) {
     const startsNewFolder = isMarkerPitch(item.pitch, settings.markerPitch, settings.tolerance);
-    if (!currentGroup || startsNewFolder) {
+
+    if (settings.skipMarkers && startsNewFolder) {
+      skippedMarkerCount += 1;
+      if (currentGroup) {
+        pendingNewGroup = true;
+        if (pendingMarkerPitch === null) pendingMarkerPitch = item.pitch;
+      }
+      continue;
+    }
+
+    if (pendingNewGroup || !currentGroup || startsNewFolder) {
       currentGroup = {
         name: `${prefix}_${String(groups.length + 1).padStart(3, '0')}`,
         files: [],
-        markerPitch: startsNewFolder ? item.pitch : null,
+        markerPitch: pendingNewGroup ? pendingMarkerPitch : startsNewFolder ? item.pitch : null,
         size: 0,
       };
       groups.push(currentGroup);
+      pendingNewGroup = false;
+      pendingMarkerPitch = null;
     }
     currentGroup.files.push({ ...item, startsNewFolder });
     currentGroup.size += item.file.size;
   }
 
-  return groups;
+  return { groups, skippedMarkerCount };
 }
 
 async function analyzeFiles(files, settings, onProgress) {
@@ -212,6 +227,7 @@ export default function App() {
   const fileInputRef = useRef(null);
   const [files, setFiles] = useState([]);
   const [groups, setGroups] = useState([]);
+  const [skippedMarkerCount, setSkippedMarkerCount] = useState(0);
   const [status, setStatus] = useState('Choose a folder or images to begin.');
   const [isWorking, setIsWorking] = useState(false);
   const [settings, setSettings] = useState({
@@ -220,6 +236,7 @@ export default function App() {
     folderPrefix: 'flare_inspection',
     sortBy: 'filename',
     keepFolderPaths: false,
+    skipMarkers: false,
   });
 
   const imageFiles = useMemo(() => files.filter(isImageFile), [files]);
@@ -234,6 +251,7 @@ export default function App() {
     const selected = Array.from(fileList || []);
     setFiles(selected);
     setGroups([]);
+    setSkippedMarkerCount(0);
     const imageCount = selected.filter(isImageFile).length;
     setStatus(`${imageCount} supported image${imageCount === 1 ? '' : 's'} selected.`);
   }
@@ -245,12 +263,16 @@ export default function App() {
     }
     setIsWorking(true);
     setGroups([]);
+    setSkippedMarkerCount(0);
     try {
       const result = await analyzeFiles(imageFiles, settings, (done, total) => {
         setStatus(`Analyzing ${done} of ${total} images...`);
       });
-      setGroups(result);
-      setStatus(`Ready: ${imageFiles.length} images grouped into ${result.length} folder${result.length === 1 ? '' : 's'}.`);
+      const outputImageCount = result.groups.reduce((sum, group) => sum + group.files.length, 0);
+      const skippedText = result.skippedMarkerCount ? ` Skipped ${result.skippedMarkerCount} marker image${result.skippedMarkerCount === 1 ? '' : 's'}.` : '';
+      setGroups(result.groups);
+      setSkippedMarkerCount(result.skippedMarkerCount);
+      setStatus(`Ready: ${outputImageCount} output image${outputImageCount === 1 ? '' : 's'} grouped into ${result.groups.length} folder${result.groups.length === 1 ? '' : 's'}.${skippedText}`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
     } finally {
@@ -293,6 +315,7 @@ export default function App() {
         <span>{imageFiles.length} files</span>
         <span>{groups.length} folders</span>
         <span>{formatBytes(totalSize)}</span>
+        {skippedMarkerCount > 0 && <span>{skippedMarkerCount} skipped markers</span>}
       </section>
 
       <div className="layout">
@@ -330,6 +353,10 @@ export default function App() {
             <input type="checkbox" checked={settings.keepFolderPaths} onChange={(event) => updateSetting('keepFolderPaths', event.target.checked)} />
             Keep original folder paths inside each output folder
           </label>
+          <label className="check-row">
+            <input type="checkbox" checked={settings.skipMarkers} onChange={(event) => updateSetting('skipMarkers', event.target.checked)} />
+            Skip pitched-down marker photos in output
+          </label>
 
           <h2>Output</h2>
           <button type="button" onClick={handleAnalyze} disabled={isWorking || !imageFiles.length}>Analyze images</button>
@@ -341,7 +368,7 @@ export default function App() {
             <div className="illustration">-90°</div>
             <div>
               <h2>Inspection set</h2>
-              <p>Every image near {settings.markerPitch}° starts a new output folder. The marker image is placed at the beginning of that new folder.</p>
+              <p>{settings.skipMarkers ? `Every image near ${settings.markerPitch}° starts a new output folder, but marker photos are skipped in the ZIP.` : `Every image near ${settings.markerPitch}° starts a new output folder. The marker image is placed at the beginning of that new folder.`}</p>
               <p className="status">{status}</p>
             </div>
           </section>
