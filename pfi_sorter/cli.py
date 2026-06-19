@@ -54,6 +54,11 @@ def build_parser() -> argparse.ArgumentParser:
             "or keep it in the current folder and start the next file in a new folder."
         ),
     )
+    parser.add_argument(
+        "--skip-markers",
+        action="store_true",
+        help="Use pitched-down photos to split folders, but do not copy or move those marker photos.",
+    )
     return parser
 
 
@@ -69,6 +74,7 @@ def main(argv: list[str] | None = None) -> int:
         recursive=args.recursive,
         dry_run=args.dry_run,
         folder_prefix=args.folder_prefix,
+        skip_markers=args.skip_markers,
     )
 
     try:
@@ -77,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(str(exc))
         return 2
 
-    if not result.images:
+    if not result.images and not result.skipped:
         print("No supported images found.")
         return 0
 
@@ -85,6 +91,9 @@ def main(argv: list[str] | None = None) -> int:
         marker = "START" if image.starts_new_folder else "     "
         pitch = "unknown" if image.pitch is None else f"{image.pitch:.2f}°"
         print(f"{marker} pitch={pitch} {image.source} -> {image.destination}")
+
+    if result.skipped:
+        print(f"Skipped {len(result.skipped)} pitched-down marker image(s).")
 
     action = "Would process" if args.dry_run else "Processed"
     print(f"{action} {len(result.images)} images into {result.folder_count} folders.")
