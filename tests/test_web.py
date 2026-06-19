@@ -16,6 +16,7 @@ def test_parse_sort_request_converts_form_values():
             "recursive": "on",
             "dry_run": "on",
             "folder_prefix": "roof",
+            "skip_markers": "on",
         }
     )
 
@@ -27,6 +28,7 @@ def test_parse_sort_request_converts_form_values():
     assert request.recursive is True
     assert request.dry_run is True
     assert request.folder_prefix == "roof"
+    assert request.skip_markers is True
 
 
 def test_parse_sort_request_requires_paths():
@@ -41,6 +43,7 @@ def test_render_page_contains_no_command_line_workflow():
     assert "Sort inspection images" in html
     assert "no command line needed" in html
     assert "Preview only" in html
+    assert "skip_markers" in html
 
 
 def test_react_preview_includes_every_group_file():
@@ -49,3 +52,13 @@ def test_react_preview_includes_every_group_file():
     assert "group.files.map((item) => ({ ...item, groupName: group.name }))" in source
     assert "group.files.slice(0, 6)" not in source
     assert ")).slice(0, 18)" not in source
+
+
+def test_react_app_can_skip_marker_images_from_output():
+    source = Path("web-app/src/App.jsx").read_text()
+
+    assert "skipMarkers: false" in source
+    assert "checked={settings.skipMarkers}" in source
+    assert "settings.skipMarkers && startsNewFolder" in source
+    assert "skippedMarkerCount += 1" in source
+    assert "Skip pitched-down marker photos in output" in source
