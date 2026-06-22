@@ -243,6 +243,10 @@ export default function App() {
   const totalSize = useMemo(() => imageFiles.reduce((sum, file) => sum + file.size, 0), [imageFiles]);
   const unknownPitchCount = useMemo(() => groups.flatMap((group) => group.files).filter((item) => item.pitch === null).length, [groups]);
 
+  useEffect(() => {
+    console.log('[PFI Sorter] Current status:', status);
+  }, [status]);
+
   function updateSetting(key, value) {
     setSettings((current) => ({ ...current, [key]: value }));
   }
