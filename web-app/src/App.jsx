@@ -168,7 +168,7 @@ async function analyzeFiles(files, settings, onProgress) {
   return buildGroups(analyses, settings);
 }
 
-async function makeZip(groups, keepFolderPaths) {
+async function makeZip(groups, keepFolderPaths, includeCsvReport) {
   const zip = new JSZip();
   const usedPaths = new Map();
 
@@ -189,7 +189,9 @@ async function makeZip(groups, keepFolderPaths) {
     }
   }
 
-  zip.file('sort_report.csv', makeCsvReport(groups));
+  if (includeCsvReport) {
+    zip.file('sort_report.csv', makeCsvReport(groups));
+  }
   return zip.generateAsync({ type: 'blob' });
 }
 
@@ -237,6 +239,7 @@ export default function App() {
     sortBy: 'filename',
     keepFolderPaths: false,
     skipMarkers: false,
+    removeCsvReport: true,
   });
 
   const imageFiles = useMemo(() => files.filter(isImageFile), [files]);
@@ -292,7 +295,7 @@ export default function App() {
     setIsWorking(true);
     try {
       setStatus('Creating ZIP file...');
-      const blob = await makeZip(groups, settings.keepFolderPaths);
+      const blob = await makeZip(groups, settings.keepFolderPaths, !settings.removeCsvReport);
       downloadBlob(blob, `${safePathPart(settings.folderPrefix)}_sorted.zip`);
       setStatus('ZIP download started.');
     } catch (error) {
@@ -360,6 +363,10 @@ export default function App() {
           <label className="check-row">
             <input type="checkbox" checked={settings.skipMarkers} onChange={(event) => updateSetting('skipMarkers', event.target.checked)} />
             Skip pitched-down marker photos in output
+          </label>
+          <label className="check-row">
+            <input type="checkbox" checked={settings.removeCsvReport} onChange={(event) => updateSetting('removeCsvReport', event.target.checked)} />
+            Remove CSV report from sorted ZIP
           </label>
 
           <h2>Output</h2>
