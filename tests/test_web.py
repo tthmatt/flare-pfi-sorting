@@ -62,3 +62,13 @@ def test_react_app_can_skip_marker_images_from_output():
     assert "settings.skipMarkers && startsNewFolder" in source
     assert "skippedMarkerCount += 1" in source
     assert "Skip pitched-down marker photos in output" in source
+
+
+def test_react_app_removes_csv_report_by_default_with_option_to_keep_it():
+    source = Path("web-app/src/App.jsx").read_text()
+
+    assert "removeCsvReport: true" in source
+    assert "checked={settings.removeCsvReport}" in source
+    assert "Remove CSV report from sorted ZIP" in source
+    assert "makeZip(groups, settings.keepFolderPaths, !settings.removeCsvReport)" in source
+    assert "if (includeCsvReport)" in source
