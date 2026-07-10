@@ -5,7 +5,7 @@ import flareLogo from './assets/flare-dynamics-logo.svg';
 const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'tif', 'tiff', 'png', 'dng']);
 const BROWSER_PREVIEW_EXTENSIONS = new Set(['jpg', 'jpeg', 'png']);
 const METADATA_READ_LIMIT = 2 * 1024 * 1024;
-const APP_VERSION = '12';
+const APP_VERSION = import.meta.env.VITE_APP_VERSION ?? 'dev';
 const CHANGELOG_ITEMS = [
   'Added visible app version tracking tied to the pull request number.',
   'Added an in-app changelog so users can quickly see what changed in the current release.',
