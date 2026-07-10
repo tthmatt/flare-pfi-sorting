@@ -6,8 +6,16 @@ const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'tif', 'tiff', 'png', 'dng']);
 const BROWSER_PREVIEW_EXTENSIONS = new Set(['jpg', 'jpeg', 'png']);
 const METADATA_READ_LIMIT = 2 * 1024 * 1024;
 
-const APP_VERSION = '0.2.0';
+const APP_VERSION = '0.3.0';
 const CHANGELOG = [
+  {
+    version: '0.3.0',
+    date: '2026-07-10',
+    changes: [
+      'Added altitude-reversal fallback splitting for missed pitched-down marker photos.',
+      'Recorded the reason each output folder was started so previews and reports are easier to audit.',
+    ],
+  },
   {
     version: '0.2.0',
     date: '2026-07-10',
@@ -35,6 +43,18 @@ const PITCH_PATTERNS = [
   /(?:drone-dji:)?CameraPitchDegree\s*=\s*["']([-+]?\d+(?:\.\d+)?)["']/i,
   /(?:Camera|Gimbal)Pitch\s*=\s*["']([-+]?\d+(?:\.\d+)?)["']/i,
   /<(?:[^:>]+:)?(?:GimbalPitchDegree|CameraPitchDegree|CameraPitch)>\s*([-+]?\d+(?:\.\d+)?)\s*<\//i,
+];
+
+const RELATIVE_ALTITUDE_PATTERNS = [
+  /(?:drone-dji:)?RelativeAltitude\s*=\s*["\']([-+]?\d+(?:\.\d+)?)["\']/i,
+  /<(?:[^:>]+:)?RelativeAltitude>\s*([-+]?\d+(?:\.\d+)?)\s*<\//i,
+];
+
+const ALTITUDE_FALLBACK_PATTERNS = [
+  /(?:drone-dji:)?AbsoluteAltitude\s*=\s*["\']([-+]?\d+(?:\.\d+)?)["\']/i,
+  /<(?:[^:>]+:)?AbsoluteAltitude>\s*([-+]?\d+(?:\.\d+)?)\s*<\//i,
+  /(?:exif:)?GPSAltitude\s*=\s*["\']([-+]?\d+(?:\.\d+)?)["\']/i,
+  /<(?:[^:>]+:)?GPSAltitude>\s*([-+]?\d+(?:\.\d+)?)\s*<\//i,
 ];
 
 const DATE_PATTERNS = [
@@ -85,6 +105,10 @@ function formatPitch(pitch) {
   return pitch === null || pitch === undefined ? 'Unknown' : `${pitch.toFixed(1)} deg`;
 }
 
+function formatAltitude(altitude) {
+  return altitude === null || altitude === undefined ? 'Unknown' : `${altitude.toFixed(1)} m`;
+}
+
 function parseCaptureDate(text) {
   for (const pattern of DATE_PATTERNS) {
     const match = text.match(pattern);
@@ -103,9 +127,20 @@ async function readMetadataText(file) {
   return new TextDecoder('utf-8', { fatal: false }).decode(buffer);
 }
 
+function firstFloatMatch(text, patterns) {
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (!match) continue;
+    const parsed = Number.parseFloat(match[1]);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
 async function readPitchAndDate(file) {
   const text = await readMetadataText(file);
   let pitch = null;
+  let altitude = null;
   for (const pattern of PITCH_PATTERNS) {
     const match = text.match(pattern);
     if (!match) continue;
@@ -115,12 +150,14 @@ async function readPitchAndDate(file) {
       break;
     }
   }
-  return { pitch, captureDate: parseCaptureDate(text) };
+  altitude = firstFloatMatch(text, RELATIVE_ALTITUDE_PATTERNS);
+  if (altitude === null) altitude = firstFloatMatch(text, ALTITUDE_FALLBACK_PATTERNS);
+  return { pitch, altitude, captureDate: parseCaptureDate(text) };
 }
 
 function isMarkerPitch(pitch, markerPitch, tolerance) {
   if (pitch === null || pitch === undefined) return false;
-  return Math.abs(pitch - markerPitch) <= tolerance;
+  return Math.abs(Math.abs(pitch) - Math.abs(markerPitch)) <= tolerance;
 }
 
 function sortAnalyses(analyses, sortBy) {
@@ -137,44 +174,148 @@ function sortAnalyses(analyses, sortBy) {
   });
 }
 
+function altitudeDirection(previous, current, tolerance) {
+  if (previous === null || previous === undefined || current === null || current === undefined) return 0;
+  const delta = current - previous;
+  if (Math.abs(delta) <= tolerance) return 0;
+  return delta > 0 ? 1 : -1;
+}
+
+function inferAltitudeReversalStarts(ordered, pitchStarts, settings) {
+  const starts = new Set();
+  let previousAltitude = null;
+  let runDirection = 0;
+  let runSteps = 0;
+  let runStartAltitude = null;
+  let candidateDirection = 0;
+  let candidateSteps = 0;
+  let candidateStartIndex = null;
+  let candidateStartAltitude = null;
+  let suppressNormals = 0;
+
+  for (let index = 0; index < ordered.length; index += 1) {
+    const altitude = ordered[index].altitude;
+    if (pitchStarts[index]) {
+      previousAltitude = altitude;
+      runDirection = 0;
+      runSteps = 0;
+      runStartAltitude = null;
+      candidateDirection = 0;
+      candidateSteps = 0;
+      candidateStartIndex = null;
+      candidateStartAltitude = null;
+      suppressNormals = settings.altitudeMarkerSuppression;
+      continue;
+    }
+
+    if (suppressNormals > 0) {
+      if (altitude !== null && altitude !== undefined) previousAltitude = altitude;
+      suppressNormals -= 1;
+      continue;
+    }
+
+    const direction = altitudeDirection(previousAltitude, altitude, settings.altitudeTolerance);
+    if (altitude === null || altitude === undefined) continue;
+    if (previousAltitude === null || previousAltitude === undefined || direction === 0) {
+      previousAltitude = altitude;
+      continue;
+    }
+
+    if (runDirection === 0) {
+      runDirection = direction;
+      runSteps = 1;
+      runStartAltitude = previousAltitude;
+    } else if (direction === runDirection) {
+      runSteps += 1;
+      candidateDirection = 0;
+      candidateSteps = 0;
+      candidateStartIndex = null;
+      candidateStartAltitude = null;
+    } else {
+      const previousRunSpan = runStartAltitude === null || runStartAltitude === undefined ? 0 : Math.abs(previousAltitude - runStartAltitude);
+      const previousRunIsSustained = runSteps >= settings.altitudeMinSteps && previousRunSpan >= settings.altitudeMinSpan;
+      if (!previousRunIsSustained) {
+        runDirection = direction;
+        runSteps = 1;
+        runStartAltitude = previousAltitude;
+      } else if (candidateDirection !== direction) {
+        candidateDirection = direction;
+        candidateSteps = 1;
+        candidateStartIndex = index;
+        candidateStartAltitude = previousAltitude;
+      } else {
+        candidateSteps += 1;
+      }
+
+      if (candidateDirection === direction && candidateStartAltitude !== null && candidateStartAltitude !== undefined) {
+        const candidateSpan = Math.abs(altitude - candidateStartAltitude);
+        if (candidateSteps >= settings.altitudeMinSteps && candidateSpan >= settings.altitudeMinSpan) {
+          if (candidateStartIndex !== null) starts.add(candidateStartIndex);
+          runDirection = candidateDirection;
+          runSteps = candidateSteps;
+          runStartAltitude = candidateStartAltitude;
+          candidateDirection = 0;
+          candidateSteps = 0;
+          candidateStartIndex = null;
+          candidateStartAltitude = null;
+        }
+      }
+    }
+
+    previousAltitude = altitude;
+  }
+
+  return starts;
+}
+
 function buildGroups(analyses, settings) {
-  const ordered = sortAnalyses(analyses, settings.sortBy);
+  const ordered = sortAnalyses(analyses, settings.inferAltitudeTurns ? 'capture' : settings.sortBy);
   const prefix = safePathPart(settings.folderPrefix);
   const groups = [];
   let currentGroup = null;
   let pendingNewGroup = false;
-  let pendingMarkerPitch = null;
+  let pendingStartReason = null;
   let skippedMarkerCount = 0;
-  let previousWasMarker = false;
+  const pitchStarts = ordered.map((item) => isMarkerPitch(item.pitch, settings.markerPitch, settings.tolerance));
+  for (let index = 1; index < pitchStarts.length; index += 1) {
+    if (pitchStarts[index] && pitchStarts[index - 1]) pitchStarts[index] = false;
+  }
+  const altitudeStarts = settings.inferAltitudeTurns ? inferAltitudeReversalStarts(ordered, pitchStarts, settings) : new Set();
 
-  for (const item of ordered) {
+  for (let index = 0; index < ordered.length; index += 1) {
+    const item = ordered[index];
     const isMarker = isMarkerPitch(item.pitch, settings.markerPitch, settings.tolerance);
-    const startsNewFolder = isMarker && !previousWasMarker;
+    const pitchStartsFolder = pitchStarts[index];
+    const altitudeStartsFolder = altitudeStarts.has(index);
+    let startReason = pitchStartsFolder ? 'pitched-down' : altitudeStartsFolder ? 'altitude-reversal' : null;
+    let startsNewFolder = startReason !== null;
 
     if (settings.skipMarkers && isMarker) {
       skippedMarkerCount += 1;
-      if (startsNewFolder && currentGroup) {
+      if (pitchStartsFolder) {
         pendingNewGroup = true;
-        if (pendingMarkerPitch === null) pendingMarkerPitch = item.pitch;
+        pendingStartReason = 'pitched-down';
       }
-      previousWasMarker = true;
       continue;
     }
 
     if (pendingNewGroup || !currentGroup || startsNewFolder) {
+      if (pendingNewGroup) {
+        startReason = pendingStartReason;
+        startsNewFolder = true;
+      }
       currentGroup = {
         name: `${prefix}_${String(groups.length + 1).padStart(3, '0')}`,
         files: [],
-        markerPitch: pendingNewGroup ? pendingMarkerPitch : startsNewFolder ? item.pitch : null,
+        startReason: startReason ?? 'first-image',
         size: 0,
       };
       groups.push(currentGroup);
       pendingNewGroup = false;
-      pendingMarkerPitch = null;
+      pendingStartReason = null;
     }
-    currentGroup.files.push({ ...item, startsNewFolder });
+    currentGroup.files.push({ ...item, startsNewFolder, startReason: startReason ?? (!currentGroup.files.length && groups.length === 1 ? 'first-image' : null) });
     currentGroup.size += item.file.size;
-    previousWasMarker = isMarker;
   }
 
   return { groups, skippedMarkerCount };
@@ -189,7 +330,7 @@ async function analyzeFiles(files, settings, onProgress) {
       const metadata = await readPitchAndDate(file);
       analyses.push({ file, ...metadata, error: null });
     } catch (error) {
-      analyses.push({ file, pitch: null, captureDate: null, error: error instanceof Error ? error.message : String(error) });
+      analyses.push({ file, pitch: null, altitude: null, captureDate: null, error: error instanceof Error ? error.message : String(error) });
     }
     onProgress?.(index + 1, images.length);
   }
@@ -224,15 +365,17 @@ async function makeZip(groups, keepFolderPaths, includeCsvReport) {
 }
 
 function makeCsvReport(groups) {
-  const rows = [['folder', 'file', 'pitch', 'capture_time', 'starts_new_folder', 'size_bytes', 'error']];
+  const rows = [['folder', 'file', 'pitch', 'altitude', 'capture_time', 'starts_new_folder', 'start_reason', 'size_bytes', 'error']];
   for (const group of groups) {
     for (const item of group.files) {
       rows.push([
         group.name,
         getDisplayPath(item.file),
         item.pitch ?? '',
+        item.altitude ?? '',
         item.captureDate ? item.captureDate.toISOString() : '',
         item.startsNewFolder ? 'yes' : 'no',
+        item.startReason ?? '',
         item.file.size,
         item.error ?? '',
       ]);
@@ -262,6 +405,11 @@ export default function App() {
   const [isWorking, setIsWorking] = useState(false);
   const [settings, setSettings] = useState({
     tolerance: 2,
+    inferAltitudeTurns: false,
+    altitudeTolerance: 0.75,
+    altitudeMinSteps: 2,
+    altitudeMinSpan: 5,
+    altitudeMarkerSuppression: 2,
     markerPitch: -90,
     folderPrefix: 'flare_inspection',
     sortBy: 'filename',
@@ -388,6 +536,14 @@ export default function App() {
             </select>
           </label>
           <label className="check-row">
+            <input type="checkbox" checked={settings.inferAltitudeTurns} onChange={(event) => updateSetting('inferAltitudeTurns', event.target.checked)} />
+            Infer missed altitude turns
+          </label>
+          <label>
+            Altitude reversal tolerance (metres)
+            <input type="number" min="0" step="0.05" value={settings.altitudeTolerance} onChange={(event) => updateSetting('altitudeTolerance', Math.max(0, Number.parseFloat(event.target.value) || 0))} />
+          </label>
+          <label className="check-row">
             <input type="checkbox" checked={settings.keepFolderPaths} onChange={(event) => updateSetting('keepFolderPaths', event.target.checked)} />
             Keep original folder paths inside each output folder
           </label>
@@ -410,7 +566,7 @@ export default function App() {
             <div className="illustration">-90°</div>
             <div>
               <h2>Inspection set</h2>
-              <p>{settings.skipMarkers ? `Every image near ${settings.markerPitch}° starts a new output folder, but marker photos are skipped in the ZIP.` : `Every image near ${settings.markerPitch}° starts a new output folder. The marker image is placed at the beginning of that new folder.`}</p>
+              <p>{settings.skipMarkers ? `Every image near ${settings.markerPitch}° starts a new output folder, but marker photos are skipped in the ZIP.` : `Every image near ${settings.markerPitch}° starts a new output folder. The marker image is placed at the beginning of that new folder. If enabled, sustained altitude reversal can start a fallback folder when a marker is missed.`}</p>
               <p className="status">{status}</p>
             </div>
           </section>
@@ -418,7 +574,8 @@ export default function App() {
           <div className="metric-grid">
             <div><strong>{imageFiles.length}</strong><span>Ready</span></div>
             <div><strong>{unknownPitchCount}</strong><span>Unknown pitch</span></div>
-            <div><strong>{settings.markerPitch}° ± {settings.tolerance}°</strong><span>Marker rule</span></div>
+            <div><strong>{settings.markerPitch}° ± {settings.tolerance}°</strong><span>Primary marker rule</span></div>
+            <div><strong>{settings.inferAltitudeTurns ? 'On' : 'Off'}</strong><span>Altitude fallback</span></div>
           </div>
 
           <section className="panel">
@@ -474,7 +631,7 @@ function FolderTable({ groups }) {
           <tr>
             <th>Folder</th>
             <th>Images</th>
-            <th>Marker</th>
+            <th>Start reason</th>
             <th>Size</th>
           </tr>
         </thead>
@@ -483,7 +640,7 @@ function FolderTable({ groups }) {
             <tr key={group.name}>
               <td><span className="folder-pill">{group.name}</span></td>
               <td>{group.files.length}</td>
-              <td>{formatPitch(group.markerPitch)}</td>
+              <td>{group.startReason}</td>
               <td>{formatBytes(group.size)}</td>
             </tr>
           ))}
@@ -507,7 +664,7 @@ function Preview({ groups }) {
             <ImageThumbnail file={item.file} />
             <strong>{getFileName(item.file)}</strong>
             <span>{item.groupName}</span>
-            <span>{formatPitch(item.pitch)}{item.startsNewFolder ? ' • starts folder' : ''}</span>
+            <span>{formatPitch(item.pitch)} • altitude {formatAltitude(item.altitude)}{item.startReason ? ` • ${item.startReason}` : ''}</span>
           </article>
         ))}
       </div>

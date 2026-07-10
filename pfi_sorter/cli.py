@@ -31,6 +31,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Allowed degrees away from 90 for pitched-down detection. Default: 2.0.",
     )
     parser.add_argument(
+        "--infer-altitude-turns",
+        action="store_true",
+        help="Infer missed folder markers from sustained altitude reversals. Disabled by default.",
+    )
+    parser.add_argument(
+        "--altitude-tolerance",
+        type=float,
+        default=0.75,
+        help="Ignore altitude changes smaller than this many metres during optional altitude inference. Default: 0.75.",
+    )
+    parser.add_argument(
         "--recursive",
         action="store_true",
         help="Scan input_dir recursively for supported image extensions.",
@@ -75,6 +86,8 @@ def main(argv: list[str] | None = None) -> int:
         dry_run=args.dry_run,
         folder_prefix=args.folder_prefix,
         skip_markers=args.skip_markers,
+        infer_altitude_turns=args.infer_altitude_turns,
+        altitude_tolerance=args.altitude_tolerance,
     )
 
     try:
@@ -90,7 +103,9 @@ def main(argv: list[str] | None = None) -> int:
     for image in result.images:
         marker = "START" if image.starts_new_folder else "     "
         pitch = "unknown" if image.pitch is None else f"{image.pitch:.2f}°"
-        print(f"{marker} pitch={pitch} {image.source} -> {image.destination}")
+        altitude = "unknown" if image.altitude is None else f"{image.altitude:.2f}"
+        reason = image.start_reason or ""
+        print(f"{marker} reason={reason} pitch={pitch} altitude_m={altitude} {image.source} -> {image.destination}")
 
     if result.skipped:
         print(f"Skipped {len(result.skipped)} pitched-down marker image(s).")
