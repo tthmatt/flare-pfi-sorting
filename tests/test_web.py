@@ -60,7 +60,8 @@ def test_react_app_can_skip_marker_images_from_output():
     assert "skipMarkers: false" in source
     assert "checked={settings.skipMarkers}" in source
     assert "settings.skipMarkers && isMarker" in source
-    assert "const startsNewFolder = isMarker && !previousWasMarker" in source
+    assert "const startReason = isMarker && !previousWasMarker" in source
+    assert "altitude-reversal" in source
     assert "skippedMarkerCount += 1" in source
     assert "Skip pitched-down marker photos in output" in source
 
@@ -71,5 +72,14 @@ def test_react_app_removes_csv_report_by_default_with_option_to_keep_it():
     assert "removeCsvReport: true" in source
     assert "checked={settings.removeCsvReport}" in source
     assert "Remove CSV report from sorted ZIP" in source
+
+
+def test_react_app_records_folder_start_reasons_and_altitude_fallback():
+    source = Path("web-app/src/App.jsx").read_text()
+
+    assert "ALTITUDE_PATTERNS" in source
+    assert "altitudeDirection" in source
+    assert "startReason" in source
+    assert "altitude-reversal" in source
     assert "makeZip(groups, settings.keepFolderPaths, !settings.removeCsvReport)" in source
     assert "if (includeCsvReport)" in source
