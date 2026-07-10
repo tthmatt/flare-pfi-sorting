@@ -59,7 +59,8 @@ def test_react_app_can_skip_marker_images_from_output():
 
     assert "skipMarkers: false" in source
     assert "checked={settings.skipMarkers}" in source
-    assert "settings.skipMarkers && startsNewFolder" in source
+    assert "settings.skipMarkers && isMarker" in source
+    assert "const startsNewFolder = isMarker && !previousWasMarker" in source
     assert "skippedMarkerCount += 1" in source
     assert "Skip pitched-down marker photos in output" in source
 

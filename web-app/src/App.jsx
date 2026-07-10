@@ -121,16 +121,19 @@ function buildGroups(analyses, settings) {
   let pendingNewGroup = false;
   let pendingMarkerPitch = null;
   let skippedMarkerCount = 0;
+  let previousWasMarker = false;
 
   for (const item of ordered) {
-    const startsNewFolder = isMarkerPitch(item.pitch, settings.markerPitch, settings.tolerance);
+    const isMarker = isMarkerPitch(item.pitch, settings.markerPitch, settings.tolerance);
+    const startsNewFolder = isMarker && !previousWasMarker;
 
-    if (settings.skipMarkers && startsNewFolder) {
+    if (settings.skipMarkers && isMarker) {
       skippedMarkerCount += 1;
-      if (currentGroup) {
+      if (startsNewFolder && currentGroup) {
         pendingNewGroup = true;
         if (pendingMarkerPitch === null) pendingMarkerPitch = item.pitch;
       }
+      previousWasMarker = true;
       continue;
     }
 
@@ -147,6 +150,7 @@ function buildGroups(analyses, settings) {
     }
     currentGroup.files.push({ ...item, startsNewFolder });
     currentGroup.size += item.file.size;
+    previousWasMarker = isMarker;
   }
 
   return { groups, skippedMarkerCount };
