@@ -134,6 +134,57 @@ h2 {
   color: var(--muted);
 }
 
+.version-badge {
+  background: var(--accent);
+  border: 1px solid #ffc7c9;
+  border-radius: 999px;
+  color: #a61118;
+  display: inline-block;
+  font-size: 0.84rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  margin-top: 10px;
+  padding: 7px 12px;
+  text-transform: uppercase;
+}
+
+.changelog-card {
+  align-items: start;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 280px minmax(0, 1fr);
+  margin-bottom: 18px;
+  padding: 18px;
+}
+
+.changelog-card .eyebrow {
+  margin-bottom: 6px;
+}
+
+.changelog-card h2 {
+  color: var(--ink);
+  font-size: 1.2rem;
+  letter-spacing: -0.02em;
+  margin-bottom: 0;
+  text-transform: none;
+}
+
+.changelog-card ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.changelog-card li {
+  color: var(--muted);
+  font-weight: 700;
+}
+
 .stats-bar {
   display: flex;
   gap: 12px;
@@ -402,7 +453,8 @@ th {
   }
 
   .layout,
-  .drop-zone {
+  .drop-zone,
+  .changelog-card {
     grid-template-columns: 1fr;
   }
 
