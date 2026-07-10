@@ -2,6 +2,8 @@ https://flare-pfi-sorting.vercel.app/
 
 # Flare PFI Sorting
 
+**Current version:** 0.2.0
+
 A dependency-free Python command-line tool for sorting drone building-inspection images into inspection run folders. The sorter reads embedded EXIF/XMP-style metadata and starts a new folder whenever the camera or gimbal pitch is detected as straight down (approximately 90 degrees).
 
 ## Why this exists
@@ -109,6 +111,29 @@ With the example above, the output would skip `DJI_0002.JPG` and `DJI_0004.JPG` 
 - `--folder-prefix NAME`: change folder names from `inspection_run_001` to `NAME_001`.
 - `--marker-policy same-folder`: keep a pitched-down marker in the current folder and start the following image in the next folder.
 - `--skip-markers`: use pitched-down marker photos to split folders, but do not copy or move those marker photos into the output folders.
+
+
+## Changelog
+
+### 0.2.0 - 2026-07-10
+
+Based on merged pull requests #3 through #11, this release includes:
+
+- Avoid creating extra empty folders when duplicate pitched-down marker photos appear in a row.
+- Add an option to remove the CSV report from the downloaded sorted ZIP.
+- Add browser-console status logging for troubleshooting.
+- Add browser and local UI controls for skipping pitched-down marker photos while still using them as split points.
+- Add CLI support for skipping pitched-down marker photos with `--skip-markers`.
+- Expand browser previews so all grouped photos can be reviewed with thumbnails when supported.
+- Brand the web app with Flare Dynamics naming and logo treatment.
+- Document Vercel deployment and project/security information.
+
+### 0.1.0 - Initial release
+
+Based on merged pull requests #1 and #2, the initial release added:
+
+- Python CLI and local web GUI for sorting drone inspection images by pitch metadata.
+- Browser-only Vercel web app with folder/file selection, local image processing, ZIP export, and CSV audit reporting.
 
 ## Development
 

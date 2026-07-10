@@ -6,6 +6,30 @@ const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'tif', 'tiff', 'png', 'dng']);
 const BROWSER_PREVIEW_EXTENSIONS = new Set(['jpg', 'jpeg', 'png']);
 const METADATA_READ_LIMIT = 2 * 1024 * 1024;
 
+const APP_VERSION = '0.2.0';
+const CHANGELOG = [
+  {
+    version: '0.2.0',
+    date: '2026-07-10',
+    changes: [
+      'Avoid creating extra empty folders when duplicate pitched-down marker photos appear in a row.',
+      'Added an option to remove the CSV report from the downloaded sorted ZIP.',
+      'Added status logging to the browser console for easier troubleshooting.',
+      'Added browser and local UI controls for skipping pitched-down marker photos while still using them as split points.',
+      'Expanded the browser preview so all grouped photos can be reviewed with thumbnails when supported.',
+      'Branded the web app with Flare Dynamics naming and logo treatment.',
+    ],
+  },
+  {
+    version: '0.1.0',
+    date: 'Initial release',
+    changes: [
+      'Created the Python CLI and local web GUI for sorting drone inspection images by pitch metadata.',
+      'Added the browser-only Vercel web app with folder/file selection, local image processing, ZIP export, and CSV audit reporting.',
+    ],
+  },
+];
+
 const PITCH_PATTERNS = [
   /(?:drone-dji:)?GimbalPitchDegree\s*=\s*["']([-+]?\d+(?:\.\d+)?)["']/i,
   /(?:drone-dji:)?CameraPitchDegree\s*=\s*["']([-+]?\d+(?:\.\d+)?)["']/i,
@@ -317,7 +341,10 @@ export default function App() {
         </div>
         <div>
           <p className="eyebrow">Flare Dynamics</p>
-          <h1>PFI Drone Image Sorter</h1>
+          <div className="title-row">
+            <h1>PFI Drone Image Sorter</h1>
+            <span className="version-badge">v{APP_VERSION}</span>
+          </div>
           <p>Flare Dynamics inspection photo grouping. Images are processed locally in your browser and exported as a ZIP.</p>
         </div>
       </section>
@@ -403,9 +430,33 @@ export default function App() {
           </section>
 
           {groups.length > 0 && <Preview groups={groups} />}
+
+          <Changelog />
         </section>
       </div>
     </main>
+  );
+}
+
+function Changelog() {
+  return (
+    <section className="panel changelog">
+      <div className="panel-heading">
+        <h2>Version history</h2>
+        <span>v{APP_VERSION}</span>
+      </div>
+      {CHANGELOG.map((release) => (
+        <article key={release.version} className="release-notes">
+          <h3>{release.version}</h3>
+          <p>{release.date}</p>
+          <ul>
+            {release.changes.map((change) => (
+              <li key={change}>{change}</li>
+            ))}
+          </ul>
+        </article>
+      ))}
+    </section>
   );
 }
 
