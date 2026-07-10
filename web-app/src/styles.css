@@ -119,6 +119,22 @@ h1 {
   margin-bottom: 4px;
 }
 
+.title-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.version-badge {
+  background: var(--accent);
+  border: 1px solid #ffc7c9;
+  border-radius: 999px;
+  color: #a61118;
+  font-weight: 900;
+  padding: 7px 12px;
+}
+
 h2 {
   color: #344054;
   font-size: 0.92rem;
@@ -182,6 +198,45 @@ h2 {
   border-top: 0;
   margin-top: 0;
   padding-top: 0;
+}
+
+.release-panel {
+  background: #fbfbfc;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  margin-top: 22px;
+  padding: 16px;
+}
+
+.release-heading {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.release-heading h2 {
+  border-top: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.release-heading span {
+  color: var(--brand);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.release-panel ul {
+  color: var(--muted);
+  margin: 12px 0 0;
+  padding-left: 20px;
+}
+
+.release-panel li + li {
+  margin-top: 8px;
 }
 
 .button-grid {

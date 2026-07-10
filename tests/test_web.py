@@ -73,3 +73,13 @@ def test_react_app_removes_csv_report_by_default_with_option_to_keep_it():
     assert "Remove CSV report from sorted ZIP" in source
     assert "makeZip(groups, settings.keepFolderPaths, !settings.removeCsvReport)" in source
     assert "if (includeCsvReport)" in source
+
+
+def test_react_app_displays_version_and_changelog():
+    source = Path("web-app/src/App.jsx").read_text()
+
+    assert "import packageInfo from '../package.json'" in source
+    assert "const APP_VERSION = packageInfo.version" in source
+    assert "CHANGELOG_ITEMS" in source
+    assert "Version v{APP_VERSION}" in source
+    assert "Changelog" in source

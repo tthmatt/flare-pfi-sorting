@@ -1,10 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import JSZip from 'jszip';
 import flareLogo from './assets/flare-dynamics-logo.svg';
+import packageInfo from '../package.json';
 
 const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'tif', 'tiff', 'png', 'dng']);
 const BROWSER_PREVIEW_EXTENSIONS = new Set(['jpg', 'jpeg', 'png']);
 const METADATA_READ_LIMIT = 2 * 1024 * 1024;
+const APP_VERSION = packageInfo.version;
+const CHANGELOG_ITEMS = [
+  'Browser-only sorting for JPG, TIFF, PNG, and DNG inspection images.',
+  'Optional marker-photo skipping and configurable -90° pitch tolerance.',
+  'ZIP export with duplicate-safe filenames and optional CSV reports.',
+];
 
 const PITCH_PATTERNS = [
   /(?:drone-dji:)?GimbalPitchDegree\s*=\s*["']([-+]?\d+(?:\.\d+)?)["']/i,
@@ -317,7 +324,10 @@ export default function App() {
         </div>
         <div>
           <p className="eyebrow">Flare Dynamics</p>
-          <h1>PFI Drone Image Sorter</h1>
+          <div className="title-row">
+            <h1>PFI Drone Image Sorter</h1>
+            <span className="version-badge" aria-label={`Version ${APP_VERSION}`}>v{APP_VERSION}</span>
+          </div>
           <p>Flare Dynamics inspection photo grouping. Images are processed locally in your browser and exported as a ZIP.</p>
         </div>
       </section>
@@ -376,6 +386,18 @@ export default function App() {
           <h2>Output</h2>
           <button type="button" onClick={handleAnalyze} disabled={isWorking || !imageFiles.length}>Analyze images</button>
           <button type="button" className="download" onClick={handleDownloadZip} disabled={isWorking || !groups.length}>Download ZIP</button>
+
+          <section className="release-panel" aria-labelledby="release-notes-heading">
+            <div className="release-heading">
+              <h2 id="release-notes-heading">Version v{APP_VERSION}</h2>
+              <span>Changelog</span>
+            </div>
+            <ul>
+              {CHANGELOG_ITEMS.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </section>
         </aside>
 
         <section className="content">
