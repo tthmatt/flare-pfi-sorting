@@ -37,6 +37,7 @@ class WebSortRequest:
     dry_run: bool
     folder_prefix: str
     skip_markers: bool
+    altitude_tolerance: float
 
     def to_options(self) -> SortOptions:
         return SortOptions(
@@ -49,6 +50,7 @@ class WebSortRequest:
             dry_run=self.dry_run,
             folder_prefix=self.folder_prefix,
             skip_markers=self.skip_markers,
+            altitude_tolerance=self.altitude_tolerance,
         )
 
 
@@ -158,6 +160,11 @@ def parse_sort_request(form: dict[str, str]) -> WebSortRequest:
     except ValueError as exc:
         raise ValueError("Pitch tolerance must be a number of degrees.") from exc
 
+    try:
+        altitude_tolerance = float(form.get("altitude_tolerance", "1.0"))
+    except ValueError as exc:
+        raise ValueError("Altitude tolerance must be a number.") from exc
+
     folder_prefix = form.get("folder_prefix", "inspection_run").strip() or "inspection_run"
     return WebSortRequest(
         input_dir=input_dir,
@@ -169,6 +176,7 @@ def parse_sort_request(form: dict[str, str]) -> WebSortRequest:
         dry_run=form.get("dry_run") == "on",
         folder_prefix=folder_prefix,
         skip_markers=form.get("skip_markers") == "on",
+        altitude_tolerance=altitude_tolerance,
     )
 
 
@@ -223,14 +231,14 @@ def render_page(
 <body>
   <header>
     <h1>Drone Image Sorter</h1>
-    <p>Sort building-inspection photos into folders automatically. Enter your image folder, choose where the sorted folders should go, and click one button — no command line needed.</p>
+    <p>Sort building-inspection photos into folders automatically. Pitched-down photos are the primary split rule; if one was missed, altitude reversal can start the next folder as a fallback — no command line needed.</p>
   </header>
   <main>
     <section class="card">
       <div class="steps">
         <div class="step"><strong>1. Pick source</strong><span class="hint">The folder with the original drone images.</span></div>
         <div class="step"><strong>2. Pick destination</strong><span class="hint">Where inspection_run folders will be created.</span></div>
-        <div class="step"><strong>3. Sort</strong><span class="hint">A new folder starts at each ±90° pitch marker.</span></div>
+        <div class="step"><strong>3. Sort</strong><span class="hint">A new folder starts at each pitch marker, or at an altitude reversal if the marker was missed.</span></div>
       </div>
     </section>
 
@@ -258,6 +266,11 @@ def render_page(
             <label for="tolerance">Pitch tolerance in degrees</label>
             <input id="tolerance" name="tolerance" type="number" step="0.1" min="0" value="{_value(values, 'tolerance', '2.0')}">
             <div class="hint">Default is 2°, so 88° to 92° counts as pitched down.</div>
+          </div>
+          <div>
+            <label for="altitude_tolerance">Altitude reversal tolerance</label>
+            <input id="altitude_tolerance" name="altitude_tolerance" type="number" step="0.1" min="0" value="{_value(values, 'altitude_tolerance', '1.0')}">
+            <div class="hint">Used only as a fallback when no pitched-down marker starts the next pass.</div>
           </div>
           <div>
             <label for="folder_prefix">Folder name prefix</label>
@@ -323,12 +336,14 @@ def _render_result(result: SortResult | None) -> str:
 
     rows = []
     for image in result.images:
-        marker = "Starts folder" if image.starts_new_folder else ""
+        marker = image.start_reason or ("Starts folder" if image.starts_new_folder else "")
         pitch = "Unknown" if image.pitch is None else f"{image.pitch:.2f}°"
+        altitude = "Unknown" if image.altitude is None else f"{image.altitude:.2f}"
         rows.append(
             "<tr>"
             f"<td>{escape(marker)}</td>"
             f"<td>{escape(pitch)}</td>"
+            f"<td>{escape(altitude)}</td>"
             f"<td class=\"path\">{escape(str(image.source))}</td>"
             f"<td class=\"path\">{escape(str(image.destination))}</td>"
             "</tr>"
@@ -342,7 +357,7 @@ def _render_result(result: SortResult | None) -> str:
         '<section class="card">'
         '<h2>Results</h2>'
         f'<p>Processed {len(result.images)} images into {result.folder_count} folders.{skipped_note}</p>'
-        '<table><thead><tr><th>Marker</th><th>Pitch</th><th>Source</th><th>Destination</th></tr></thead>'
+        '<table><thead><tr><th>Start reason</th><th>Pitch</th><th>Altitude</th><th>Source</th><th>Destination</th></tr></thead>'
         f'<tbody>{"".join(rows)}</tbody></table>'
         '</section>'
     )
