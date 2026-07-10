@@ -5,6 +5,11 @@ import flareLogo from './assets/flare-dynamics-logo.svg';
 const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'tif', 'tiff', 'png', 'dng']);
 const BROWSER_PREVIEW_EXTENSIONS = new Set(['jpg', 'jpeg', 'png']);
 const METADATA_READ_LIMIT = 2 * 1024 * 1024;
+const APP_VERSION = '12';
+const CHANGELOG_ITEMS = [
+  'Added visible app version tracking tied to the pull request number.',
+  'Added an in-app changelog so users can quickly see what changed in the current release.',
+];
 
 const PITCH_PATTERNS = [
   /(?:drone-dji:)?GimbalPitchDegree\s*=\s*["']([-+]?\d+(?:\.\d+)?)["']/i,
@@ -316,7 +321,10 @@ export default function App() {
           <img src={flareLogo} alt="Flare Dynamics" />
         </div>
         <div>
-          <p className="eyebrow">Flare Dynamics</p>
+          <div className="hero-meta">
+            <p className="eyebrow">Flare Dynamics</p>
+            <span className="version-badge">Version {APP_VERSION}</span>
+          </div>
           <h1>PFI Drone Image Sorter</h1>
           <p>Flare Dynamics inspection photo grouping. Images are processed locally in your browser and exported as a ZIP.</p>
         </div>
@@ -379,6 +387,8 @@ export default function App() {
         </aside>
 
         <section className="content">
+          <Changelog />
+
           <section className="drop-zone" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); handleFileList(event.dataTransfer.files); }}>
             <div className="illustration">-90°</div>
             <div>
@@ -496,5 +506,21 @@ function ImageThumbnail({ file }) {
       loading="lazy"
       onError={() => setHasPreviewError(true)}
     />
+  );
+}
+
+function Changelog() {
+  return (
+    <section className="panel changelog" aria-labelledby="changelog-heading">
+      <div className="panel-heading">
+        <h2 id="changelog-heading">Changelog</h2>
+        <span>Version {APP_VERSION}</span>
+      </div>
+      <ul>
+        {CHANGELOG_ITEMS.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+    </section>
   );
 }

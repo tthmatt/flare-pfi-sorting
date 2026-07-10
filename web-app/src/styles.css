@@ -98,13 +98,31 @@ button.download:hover:not(:disabled) {
   width: 100%;
 }
 
+.hero-meta {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
 .eyebrow {
   color: var(--brand);
   font-size: 0.82rem;
   font-weight: 900;
   letter-spacing: 0.18em;
-  margin-bottom: 8px;
+  margin-bottom: 0;
   text-transform: uppercase;
+}
+
+.version-badge {
+  background: var(--accent);
+  border: 1px solid #ffc7c9;
+  border-radius: 999px;
+  color: #a61118;
+  font-size: 0.8rem;
+  font-weight: 900;
+  padding: 6px 10px;
 }
 
 h1,
@@ -221,6 +239,19 @@ select {
 .content {
   display: grid;
   gap: 20px;
+}
+
+
+.changelog ul {
+  color: var(--muted);
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding-left: 20px;
+}
+
+.changelog li::marker {
+  color: var(--brand);
 }
 
 .drop-zone {
