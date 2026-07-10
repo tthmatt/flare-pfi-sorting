@@ -517,8 +517,8 @@ function Changelog() {
         <span>Version {APP_VERSION}</span>
       </div>
       <ul>
-        {CHANGELOG_ITEMS.map((item) => (
-          <li key={item}>{item}</li>
+        {CHANGELOG_ITEMS.map((item, index) => (
+          <li key={`${APP_VERSION}-${index}`}>{item}</li>
         ))}
       </ul>
     </section>
