@@ -59,9 +59,23 @@ def test_react_app_can_skip_marker_images_from_output():
 
     assert "skipMarkers: false" in source
     assert "checked={settings.skipMarkers}" in source
-    assert "settings.skipMarkers && startsNewFolder" in source
+    assert "settings.skipMarkers && isMarker" in source
+    assert "const startsNewFolder = isMarker && !previousWasMarker" in source
     assert "skippedMarkerCount += 1" in source
     assert "Skip pitched-down marker photos in output" in source
+
+
+def test_react_app_shows_version_and_changelog():
+    source = Path("web-app/src/App.jsx").read_text()
+    styles = Path("web-app/src/styles.css").read_text()
+
+    assert "const APP_VERSION = '#11'" in source
+    assert "const CHANGELOG_ITEMS" in source
+    assert "Version {APP_VERSION}" in source
+    assert "What changed in Version {APP_VERSION}" in source
+    assert "Prevents accidental duplicate pitched-down photos" in source
+    assert "version-badge" in styles
+    assert "changelog-card" in styles
 
 
 def test_react_app_removes_csv_report_by_default_with_option_to_keep_it():

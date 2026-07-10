@@ -5,6 +5,12 @@ import flareLogo from './assets/flare-dynamics-logo.svg';
 const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'tif', 'tiff', 'png', 'dng']);
 const BROWSER_PREVIEW_EXTENSIONS = new Set(['jpg', 'jpeg', 'png']);
 const METADATA_READ_LIMIT = 2 * 1024 * 1024;
+const APP_VERSION = '#11';
+const CHANGELOG_ITEMS = [
+  'Prevents accidental duplicate pitched-down photos from creating extra output folders.',
+  'Skips marker-only folder increments when marker photos are removed from the ZIP.',
+  'Keeps CSV report removal optional while preserving full image previews.',
+];
 
 const PITCH_PATTERNS = [
   /(?:drone-dji:)?GimbalPitchDegree\s*=\s*["']([-+]?\d+(?:\.\d+)?)["']/i,
@@ -121,16 +127,19 @@ function buildGroups(analyses, settings) {
   let pendingNewGroup = false;
   let pendingMarkerPitch = null;
   let skippedMarkerCount = 0;
+  let previousWasMarker = false;
 
   for (const item of ordered) {
-    const startsNewFolder = isMarkerPitch(item.pitch, settings.markerPitch, settings.tolerance);
+    const isMarker = isMarkerPitch(item.pitch, settings.markerPitch, settings.tolerance);
+    const startsNewFolder = isMarker && !previousWasMarker;
 
-    if (settings.skipMarkers && startsNewFolder) {
+    if (settings.skipMarkers && isMarker) {
       skippedMarkerCount += 1;
-      if (currentGroup) {
+      if (startsNewFolder && currentGroup) {
         pendingNewGroup = true;
         if (pendingMarkerPitch === null) pendingMarkerPitch = item.pitch;
       }
+      previousWasMarker = true;
       continue;
     }
 
@@ -147,6 +156,7 @@ function buildGroups(analyses, settings) {
     }
     currentGroup.files.push({ ...item, startsNewFolder });
     currentGroup.size += item.file.size;
+    previousWasMarker = isMarker;
   }
 
   return { groups, skippedMarkerCount };
@@ -315,7 +325,20 @@ export default function App() {
           <p className="eyebrow">Flare Dynamics</p>
           <h1>PFI Drone Image Sorter</h1>
           <p>Flare Dynamics inspection photo grouping. Images are processed locally in your browser and exported as a ZIP.</p>
+          <span className="version-badge">Version {APP_VERSION}</span>
         </div>
+      </section>
+
+      <section className="changelog-card" aria-labelledby="changelog-heading">
+        <div>
+          <p className="eyebrow">Changelog</p>
+          <h2 id="changelog-heading">What changed in Version {APP_VERSION}</h2>
+        </div>
+        <ul>
+          {CHANGELOG_ITEMS.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
       </section>
 
       <section className="stats-bar" aria-label="Selected image summary">

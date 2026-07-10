@@ -139,15 +139,18 @@ def sort_images(options: SortOptions) -> SortResult:
     images = discover_images(options.input_dir, options.recursive)
     run_number = 0
     pending_new_folder = False
+    previous_was_marker = False
 
     for source in images:
         pitch = read_pitch_degrees(source)
-        starts_new_folder = _is_downward_pitch(pitch, options.tolerance)
+        is_marker = _is_downward_pitch(pitch, options.tolerance)
+        starts_new_folder = is_marker and not previous_was_marker
 
-        if starts_new_folder and options.skip_markers:
+        if is_marker and options.skip_markers:
             result.skipped.append(source)
-            if result.images:
+            if starts_new_folder and result.images:
                 pending_new_folder = True
+            previous_was_marker = True
             continue
 
         if pending_new_folder:
@@ -175,6 +178,8 @@ def sort_images(options: SortOptions) -> SortResult:
 
         if starts_new_folder and options.marker_policy == "same-folder":
             run_number += 1
+
+        previous_was_marker = is_marker
 
     return result
 
