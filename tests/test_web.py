@@ -81,11 +81,12 @@ def test_react_app_removes_csv_report_by_default_with_option_to_keep_it():
 
 def test_react_app_records_folder_start_reasons_and_altitude_fallback():
     source = Path("web-app/src/App.jsx").read_text()
+    grouping_source = Path("web-app/src/grouping.js").read_text()
 
     assert "RELATIVE_ALTITUDE_PATTERNS" in source
     assert "ALTITUDE_FALLBACK_PATTERNS" in source
     assert "inferAltitudeTurns: false" in source
-    assert "altitudeDirection" in source
+    assert "altitudeDirection" in grouping_source
     assert "startReason" in source
     assert "altitude-reversal" in source
     assert "makeZip(groups, settings.keepFolderPaths, !settings.removeCsvReport)" in source
@@ -99,10 +100,22 @@ def test_react_marker_pitch_accepts_positive_and_negative_90():
 
 
 def test_react_altitude_inference_requires_sustained_reversal():
-    source = Path("web-app/src/App.jsx").read_text()
+    source = Path("web-app/src/grouping.js").read_text()
 
     assert "runSteps >= settings.altitudeMinSteps" in source
     assert "previousRunSpan >= settings.altitudeMinSpan" in source
     assert "candidateSteps >= settings.altitudeMinSteps" in source
     assert "candidateSpan >= settings.altitudeMinSpan" in source
-    assert "settings.inferAltitudeTurns ? 'capture' : settings.sortBy" in source
+    app_source = Path("web-app/src/App.jsx").read_text()
+    assert "settings.inferAltitudeTurns ? 'capture' : settings.sortBy" in app_source
+
+
+def test_react_horizontal_traverse_is_confirmed_and_has_distinct_reason():
+    source = Path("web-app/src/grouping.js").read_text()
+    app_source = Path("web-app/src/App.jsx").read_text()
+
+    assert "horizontalMinPhotos" in source
+    assert "horizontalPitchTolerance" in source
+    assert "direction === -traverse.priorDirection" in source
+    assert "replacedReversals" in source
+    assert "horizontal-traverse" in app_source

@@ -17,7 +17,7 @@ import shutil
 from typing import Literal
 
 ImageAction = Literal["copy", "move"]
-FolderStartReason = Literal["first-image", "pitched-down", "altitude-reversal"]
+FolderStartReason = Literal["first-image", "pitched-down", "altitude-reversal", "horizontal-traverse"]
 
 IMAGE_EXTENSIONS = {
     ".jpg",
@@ -74,6 +74,8 @@ class SortOptions:
     altitude_min_steps: int = 2
     altitude_min_span: float = 5.0
     altitude_marker_suppression: int = 2
+    horizontal_min_photos: int = 2
+    horizontal_pitch_tolerance: float = 5.0
 
 
 @dataclass
@@ -170,6 +172,10 @@ def sort_images(options: SortOptions) -> SortResult:
         raise ValueError("altitude_min_span must be zero or greater")
     if options.altitude_marker_suppression < 0:
         raise ValueError("altitude_marker_suppression must be zero or greater")
+    if options.horizontal_min_photos < 2:
+        raise ValueError("horizontal_min_photos must be at least two")
+    if options.horizontal_pitch_tolerance < 0:
+        raise ValueError("horizontal_pitch_tolerance must be zero or greater")
     if not options.input_dir.exists() or not options.input_dir.is_dir():
         raise FileNotFoundError(f"Input directory does not exist: {options.input_dir}")
 
@@ -181,10 +187,10 @@ def sort_images(options: SortOptions) -> SortResult:
     for index in range(1, len(pitch_starts)):
         if pitch_starts[index] and pitch_starts[index - 1]:
             pitch_starts[index] = False
-    altitude_starts = (
-        _infer_altitude_reversal_starts(altitudes, pitch_starts, options)
+    altitude_starts, horizontal_starts = (
+        _infer_altitude_starts(altitudes, pitches, pitch_starts, options)
         if options.infer_altitude_turns
-        else set()
+        else (set(), set())
     )
 
     run_number = 0
@@ -195,11 +201,14 @@ def sort_images(options: SortOptions) -> SortResult:
         pitch = pitches[index]
         altitude = altitudes[index]
         pitch_starts_folder = pitch_starts[index]
-        altitude_starts_folder = index in altitude_starts
+        horizontal_starts_folder = index in horizontal_starts
+        altitude_starts_folder = index in altitude_starts or horizontal_starts_folder
         starts_new_folder = pitch_starts_folder or altitude_starts_folder
         start_reason: FolderStartReason | None = None
         if pitch_starts_folder:
             start_reason = "pitched-down"
+        elif horizontal_starts_folder:
+            start_reason = "horizontal-traverse"
         elif altitude_starts_folder:
             start_reason = "altitude-reversal"
 
@@ -243,6 +252,161 @@ def sort_images(options: SortOptions) -> SortResult:
             run_number += 1
 
     return result
+
+
+def _infer_altitude_starts(
+    altitudes: list[float | None],
+    pitches: list[float | None],
+    pitch_starts: list[bool],
+    options: SortOptions,
+) -> tuple[set[int], set[int]]:
+    reversal_starts = _infer_altitude_reversal_starts(altitudes, pitch_starts, options)
+    horizontal_starts, replaced_reversals = _infer_horizontal_traverse_starts(
+        altitudes, pitches, pitch_starts, options
+    )
+    reversal_starts.difference_update(replaced_reversals)
+    return reversal_starts, horizontal_starts
+
+
+def _infer_horizontal_traverse_starts(
+    altitudes: list[float | None],
+    pitches: list[float | None],
+    pitch_starts: list[bool],
+    options: SortOptions,
+) -> tuple[set[int], set[int]]:
+    """Find confirmed level traverses between opposite sustained vertical passes."""
+
+    starts: set[int] = set()
+    replaced_reversals: set[int] = set()
+    previous_altitude: float | None = None
+    run_direction = 0
+    run_steps = 0
+    run_start_altitude: float | None = None
+    traverse_start: int | None = None
+    traverse_count = 0
+    traverse_first_altitude: float | None = None
+    traverse_last_altitude: float | None = None
+    prior_direction = 0
+    next_direction = 0
+    next_steps = 0
+    next_first_index: int | None = None
+    suppress_normals = 0
+
+    def reset_traverse() -> None:
+        nonlocal traverse_start, traverse_count, traverse_first_altitude
+        nonlocal traverse_last_altitude, prior_direction, next_direction
+        nonlocal next_steps, next_first_index
+        traverse_start = None
+        traverse_count = 0
+        traverse_first_altitude = None
+        traverse_last_altitude = None
+        prior_direction = 0
+        next_direction = 0
+        next_steps = 0
+        next_first_index = None
+
+    for index, (altitude, pitch) in enumerate(zip(altitudes, pitches)):
+        if pitch_starts[index]:
+            previous_altitude = altitude
+            run_direction = 0
+            run_steps = 0
+            run_start_altitude = None
+            reset_traverse()
+            suppress_normals = options.altitude_marker_suppression
+            continue
+
+        if suppress_normals > 0:
+            if altitude is not None:
+                previous_altitude = altitude
+            suppress_normals -= 1
+            continue
+
+        is_horizontal = (
+            altitude is not None
+            and pitch is not None
+            and abs(pitch) <= options.horizontal_pitch_tolerance
+        )
+        run_span = (
+            0.0
+            if run_start_altitude is None or previous_altitude is None
+            else abs(previous_altitude - run_start_altitude)
+        )
+        run_is_sustained = run_steps >= options.altitude_min_steps and run_span >= options.altitude_min_span
+
+        if traverse_start is None and is_horizontal and run_is_sustained:
+            traverse_start = index
+            traverse_count = 1
+            traverse_first_altitude = altitude
+            traverse_last_altitude = altitude
+            prior_direction = run_direction
+            previous_altitude = altitude
+            continue
+
+        if traverse_start is not None:
+            if is_horizontal:
+                is_level = (
+                    traverse_first_altitude is not None
+                    and traverse_last_altitude is not None
+                    and abs(altitude - traverse_first_altitude) <= options.altitude_tolerance
+                    and abs(altitude - traverse_last_altitude) <= options.altitude_tolerance
+                )
+                if is_level:
+                    traverse_count += 1
+                    traverse_last_altitude = altitude
+                    previous_altitude = altitude
+                    continue
+                reset_traverse()
+
+            if traverse_count >= options.horizontal_min_photos and traverse_last_altitude is not None:
+                direction = _altitude_direction(traverse_last_altitude, altitude, options.altitude_tolerance)
+                if altitude is None or direction == 0:
+                    if altitude is not None:
+                        previous_altitude = altitude
+                        traverse_last_altitude = altitude
+                    continue
+                if direction == -prior_direction:
+                    if next_direction == 0:
+                        next_direction = direction
+                        next_steps = 1
+                        next_first_index = index
+                    elif direction == next_direction:
+                        next_steps += 1
+                    else:
+                        reset_traverse()
+                    next_span = abs(altitude - traverse_last_altitude)
+                    if (
+                        traverse_start is not None
+                        and next_first_index is not None
+                        and next_steps >= options.altitude_min_steps
+                        and next_span >= options.altitude_min_span
+                    ):
+                        starts.add(traverse_start)
+                        replaced_reversals.add(next_first_index)
+                        run_direction = direction
+                        run_steps = next_steps
+                        run_start_altitude = traverse_last_altitude
+                        reset_traverse()
+                    previous_altitude = altitude
+                    continue
+                reset_traverse()
+            else:
+                reset_traverse()
+
+        direction = _altitude_direction(previous_altitude, altitude, options.altitude_tolerance)
+        if altitude is None:
+            continue
+        if previous_altitude is None or direction == 0:
+            previous_altitude = altitude
+            continue
+        if run_direction == direction:
+            run_steps += 1
+        else:
+            run_direction = direction
+            run_steps = 1
+            run_start_altitude = previous_altitude
+        previous_altitude = altitude
+
+    return starts, replaced_reversals
 
 
 def _infer_altitude_reversal_starts(

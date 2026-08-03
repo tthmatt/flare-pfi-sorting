@@ -1,13 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import JSZip from 'jszip';
 import flareLogo from './assets/flare-dynamics-logo.svg';
+import { inferAltitudeStarts } from './grouping.js';
 
 const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'tif', 'tiff', 'png', 'dng']);
 const BROWSER_PREVIEW_EXTENSIONS = new Set(['jpg', 'jpeg', 'png']);
 const METADATA_READ_LIMIT = 2 * 1024 * 1024;
 
-const APP_VERSION = '0.3.0';
+const APP_VERSION = '0.3.1';
 const CHANGELOG = [
+  {
+    version: '0.3.1',
+    date: '2026-08-03',
+    changes: [
+      'Added confirmed horizontal-traverse folder starts between opposite vertical facade passes.',
+      'Kept pitched-down markers primary and rejected same-direction level pauses to avoid false splits.',
+    ],
+  },
   {
     version: '0.3.0',
     date: '2026-07-10',
@@ -174,100 +183,6 @@ function sortAnalyses(analyses, sortBy) {
   });
 }
 
-function altitudeDirection(previous, current, tolerance) {
-  if (previous === null || previous === undefined || current === null || current === undefined) return 0;
-  const delta = current - previous;
-  if (Math.abs(delta) <= tolerance) return 0;
-  return delta > 0 ? 1 : -1;
-}
-
-function inferAltitudeReversalStarts(ordered, pitchStarts, settings) {
-  const starts = new Set();
-  let previousAltitude = null;
-  let runDirection = 0;
-  let runSteps = 0;
-  let runStartAltitude = null;
-  let candidateDirection = 0;
-  let candidateSteps = 0;
-  let candidateStartIndex = null;
-  let candidateStartAltitude = null;
-  let suppressNormals = 0;
-
-  for (let index = 0; index < ordered.length; index += 1) {
-    const altitude = ordered[index].altitude;
-    if (pitchStarts[index]) {
-      previousAltitude = altitude;
-      runDirection = 0;
-      runSteps = 0;
-      runStartAltitude = null;
-      candidateDirection = 0;
-      candidateSteps = 0;
-      candidateStartIndex = null;
-      candidateStartAltitude = null;
-      suppressNormals = settings.altitudeMarkerSuppression;
-      continue;
-    }
-
-    if (suppressNormals > 0) {
-      if (altitude !== null && altitude !== undefined) previousAltitude = altitude;
-      suppressNormals -= 1;
-      continue;
-    }
-
-    const direction = altitudeDirection(previousAltitude, altitude, settings.altitudeTolerance);
-    if (altitude === null || altitude === undefined) continue;
-    if (previousAltitude === null || previousAltitude === undefined || direction === 0) {
-      previousAltitude = altitude;
-      continue;
-    }
-
-    if (runDirection === 0) {
-      runDirection = direction;
-      runSteps = 1;
-      runStartAltitude = previousAltitude;
-    } else if (direction === runDirection) {
-      runSteps += 1;
-      candidateDirection = 0;
-      candidateSteps = 0;
-      candidateStartIndex = null;
-      candidateStartAltitude = null;
-    } else {
-      const previousRunSpan = runStartAltitude === null || runStartAltitude === undefined ? 0 : Math.abs(previousAltitude - runStartAltitude);
-      const previousRunIsSustained = runSteps >= settings.altitudeMinSteps && previousRunSpan >= settings.altitudeMinSpan;
-      if (!previousRunIsSustained) {
-        runDirection = direction;
-        runSteps = 1;
-        runStartAltitude = previousAltitude;
-      } else if (candidateDirection !== direction) {
-        candidateDirection = direction;
-        candidateSteps = 1;
-        candidateStartIndex = index;
-        candidateStartAltitude = previousAltitude;
-      } else {
-        candidateSteps += 1;
-      }
-
-      if (candidateDirection === direction && candidateStartAltitude !== null && candidateStartAltitude !== undefined) {
-        const candidateSpan = Math.abs(altitude - candidateStartAltitude);
-        if (candidateSteps >= settings.altitudeMinSteps && candidateSpan >= settings.altitudeMinSpan) {
-          if (candidateStartIndex !== null) starts.add(candidateStartIndex);
-          runDirection = candidateDirection;
-          runSteps = candidateSteps;
-          runStartAltitude = candidateStartAltitude;
-          candidateDirection = 0;
-          candidateSteps = 0;
-          candidateStartIndex = null;
-          candidateStartAltitude = null;
-        }
-      }
-    }
-
-    previousAltitude = altitude;
-  }
-
-  return starts;
-}
-
 function buildGroups(analyses, settings) {
   const ordered = sortAnalyses(analyses, settings.inferAltitudeTurns ? 'capture' : settings.sortBy);
   const prefix = safePathPart(settings.folderPrefix);
@@ -280,14 +195,17 @@ function buildGroups(analyses, settings) {
   for (let index = 1; index < pitchStarts.length; index += 1) {
     if (pitchStarts[index] && pitchStarts[index - 1]) pitchStarts[index] = false;
   }
-  const altitudeStarts = settings.inferAltitudeTurns ? inferAltitudeReversalStarts(ordered, pitchStarts, settings) : new Set();
+  const { reversalStarts: altitudeStarts, horizontalStarts } = settings.inferAltitudeTurns
+    ? inferAltitudeStarts(ordered, pitchStarts, settings)
+    : { reversalStarts: new Set(), horizontalStarts: new Set() };
 
   for (let index = 0; index < ordered.length; index += 1) {
     const item = ordered[index];
     const isMarker = isMarkerPitch(item.pitch, settings.markerPitch, settings.tolerance);
     const pitchStartsFolder = pitchStarts[index];
-    const altitudeStartsFolder = altitudeStarts.has(index);
-    let startReason = pitchStartsFolder ? 'pitched-down' : altitudeStartsFolder ? 'altitude-reversal' : null;
+    const horizontalStartsFolder = horizontalStarts.has(index);
+    const altitudeStartsFolder = altitudeStarts.has(index) || horizontalStartsFolder;
+    let startReason = pitchStartsFolder ? 'pitched-down' : horizontalStartsFolder ? 'horizontal-traverse' : altitudeStartsFolder ? 'altitude-reversal' : null;
     let startsNewFolder = startReason !== null;
 
     if (settings.skipMarkers && isMarker) {
@@ -410,6 +328,8 @@ export default function App() {
     altitudeMinSteps: 2,
     altitudeMinSpan: 5,
     altitudeMarkerSuppression: 2,
+    horizontalMinPhotos: 2,
+    horizontalPitchTolerance: 5,
     markerPitch: -90,
     folderPrefix: 'flare_inspection',
     sortBy: 'filename',
@@ -566,7 +486,7 @@ export default function App() {
             <div className="illustration">-90°</div>
             <div>
               <h2>Inspection set</h2>
-              <p>{settings.skipMarkers ? `Every image near ${settings.markerPitch}° starts a new output folder, but marker photos are skipped in the ZIP.` : `Every image near ${settings.markerPitch}° starts a new output folder. The marker image is placed at the beginning of that new folder. If enabled, sustained altitude reversal can start a fallback folder when a marker is missed.`}</p>
+              <p>{settings.skipMarkers ? `Every image near ${settings.markerPitch}° starts a new output folder, but marker photos are skipped in the ZIP.` : `Every image near ${settings.markerPitch}° starts a new output folder. The marker image is placed at the beginning of that new folder. If enabled, a sustained altitude reversal or confirmed horizontal traverse can start a fallback folder when a marker is missed.`}</p>
               <p className="status">{status}</p>
             </div>
           </section>

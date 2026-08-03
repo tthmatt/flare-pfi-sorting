@@ -222,6 +222,64 @@ def test_climb_horizontal_sustained_descent_without_marker_creates_one_inferred_
     assert inferred[0].source.name == "007.jpg"
 
 
+def test_confirmed_horizontal_traverse_starts_folder_at_first_level_photo(tmp_path):
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir()
+    data = [
+        (-10, 34), (-10, 26), (-10, 18),
+        (0, 10.5), (0, 10.7),
+        (-10, 18), (-10, 26),
+    ]
+    for index, (pitch, altitude) in enumerate(data, start=1):
+        write_image(input_dir / f"{index:03d}.jpg", pitch=pitch, altitude=altitude, date=f"2026:01:01 10:00:{index:02d}")
+
+    result = sort_images(SortOptions(input_dir=input_dir, output_dir=output_dir, infer_altitude_turns=True))
+
+    assert result.folder_count == 2
+    assert result.images[3].source.name == "004.jpg"
+    assert result.images[3].starts_new_folder is True
+    assert result.images[3].start_reason == "horizontal-traverse"
+    assert result.images[3].altitude == 10.5
+    assert result.images[4].altitude == 10.7
+    assert not [image for image in result.images if image.start_reason == "altitude-reversal"]
+
+
+def test_level_pause_that_resumes_same_vertical_direction_does_not_split(tmp_path):
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir()
+    data = [
+        (-10, 10), (-10, 18), (-10, 26),
+        (0, 26.1), (0, 26.2),
+        (-10, 34), (-10, 42),
+    ]
+    for index, (pitch, altitude) in enumerate(data, start=1):
+        write_image(input_dir / f"{index:03d}.jpg", pitch=pitch, altitude=altitude, date=f"2026:01:01 10:00:{index:02d}")
+
+    result = sort_images(SortOptions(input_dir=input_dir, output_dir=output_dir, infer_altitude_turns=True))
+
+    assert result.folder_count == 1
+    assert not [image for image in result.images if image.start_reason == "horizontal-traverse"]
+
+
+def test_pitched_down_marker_remains_primary_near_horizontal_traverse(tmp_path):
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir()
+    data = [
+        (-10, 34), (-10, 26), (-10, 18), (-90, 10.4),
+        (0, 10.5), (0, 10.7), (-10, 18), (-10, 26),
+    ]
+    for index, (pitch, altitude) in enumerate(data, start=1):
+        write_image(input_dir / f"{index:03d}.jpg", pitch=pitch, altitude=altitude, date=f"2026:01:01 10:00:{index:02d}")
+
+    result = sort_images(SortOptions(input_dir=input_dir, output_dir=output_dir, infer_altitude_turns=True))
+
+    assert result.folder_count == 2
+    assert [image.start_reason for image in result.images if image.starts_new_folder] == ["pitched-down"]
+
+
 def test_skipped_marker_preserves_pitched_down_reason_on_first_included_photo(tmp_path):
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
