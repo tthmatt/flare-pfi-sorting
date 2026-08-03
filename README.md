@@ -22,7 +22,7 @@ The sorter looks for common embedded pitch fields used by drone vendors and meta
 
 Both `90` and `-90` are treated as pitched down because different vendors use different signs. The default tolerance is `2` degrees, so `-89.4` and `91.2` count as down-facing markers.
 
-The optional altitude fallback reads `RelativeAltitude` first and uses `AbsoluteAltitude`/`GPSAltitude` only as a fallback. Altitude inference is disabled by default. When enabled, it ignores altitude changes under `0.75 m`, requires at least two significant steps and at least `5 m` of vertical span on both sides of a turn, and suppresses altitude splitting immediately after real pitched-down markers. A confirmed horizontal traverse can start the next folder at its first photo when at least two near-level, near-0° pitch photos sit between sustained vertical passes in opposite directions. A level pause that continues in the same direction does not split.
+The optional altitude fallback reads `RelativeAltitude` first and uses `AbsoluteAltitude`/`GPSAltitude` only as a fallback. Altitude inference is disabled by default. When enabled, it ignores altitude changes under `0.75 m`, requires at least two significant steps and at least `5 m` of vertical span on both sides of a turn, and suppresses altitude splitting immediately after real pitched-down markers. A confirmed horizontal traverse starts the next folder at the second near-level, near-0° pitch photo between sustained vertical passes in opposite directions. The first horizontal photo stays in the prior folder, and a level pause that continues in the same direction does not split.
 
 ## Web GUI for non-technical users
 
@@ -122,7 +122,7 @@ With the example above, the output would skip `DJI_0002.JPG` and `DJI_0004.JPG` 
 
 ### 0.3.1 - 2026-08-03
 
-- Start a new folder at the first photo of a confirmed horizontal traverse between opposite vertical facade passes.
+- Start a new folder after the first photo of a confirmed horizontal traverse between opposite vertical facade passes.
 - Require two near-level, near-0° pitch photos plus sustained vertical movement on both sides.
 - Keep pitched-down markers primary and avoid duplicate altitude or horizontal-traverse folders around them.
 - Record `horizontal-traverse` as a distinct folder start reason.

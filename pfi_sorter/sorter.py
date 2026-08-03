@@ -283,6 +283,7 @@ def _infer_horizontal_traverse_starts(
     run_steps = 0
     run_start_altitude: float | None = None
     traverse_start: int | None = None
+    traverse_boundary: int | None = None
     traverse_count = 0
     traverse_first_altitude: float | None = None
     traverse_last_altitude: float | None = None
@@ -293,10 +294,11 @@ def _infer_horizontal_traverse_starts(
     suppress_normals = 0
 
     def reset_traverse() -> None:
-        nonlocal traverse_start, traverse_count, traverse_first_altitude
+        nonlocal traverse_start, traverse_boundary, traverse_count, traverse_first_altitude
         nonlocal traverse_last_altitude, prior_direction, next_direction
         nonlocal next_steps, next_first_index
         traverse_start = None
+        traverse_boundary = None
         traverse_count = 0
         traverse_first_altitude = None
         traverse_last_altitude = None
@@ -352,6 +354,8 @@ def _infer_horizontal_traverse_starts(
                 )
                 if is_level:
                     traverse_count += 1
+                    if traverse_count == options.horizontal_min_photos:
+                        traverse_boundary = index
                     traverse_last_altitude = altitude
                     previous_altitude = altitude
                     continue
@@ -375,12 +379,12 @@ def _infer_horizontal_traverse_starts(
                         reset_traverse()
                     next_span = abs(altitude - traverse_last_altitude)
                     if (
-                        traverse_start is not None
+                        traverse_boundary is not None
                         and next_first_index is not None
                         and next_steps >= options.altitude_min_steps
                         and next_span >= options.altitude_min_span
                     ):
-                        starts.add(traverse_start)
+                        starts.add(traverse_boundary)
                         replaced_reversals.add(next_first_index)
                         run_direction = direction
                         run_steps = next_steps

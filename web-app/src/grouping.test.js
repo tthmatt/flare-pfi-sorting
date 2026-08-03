@@ -17,9 +17,9 @@ function analyze(data) {
   return inferAltitudeStarts(ordered, pitchStarts, settings);
 }
 
-test('10.5 m and 10.7 m horizontal photos start the next folder once the opposite pass is confirmed', () => {
+test('10.5 m stays put and the following 10.7 m horizontal photo starts the next folder', () => {
   const result = analyze([[-10, 34], [-10, 26], [-10, 18], [0, 10.5], [0, 10.7], [-10, 18], [-10, 26]]);
-  assert.deepEqual([...result.horizontalStarts], [3]);
+  assert.deepEqual([...result.horizontalStarts], [4]);
   assert.deepEqual([...result.reversalStarts], []);
 });
 

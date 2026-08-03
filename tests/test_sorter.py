@@ -222,7 +222,7 @@ def test_climb_horizontal_sustained_descent_without_marker_creates_one_inferred_
     assert inferred[0].source.name == "007.jpg"
 
 
-def test_confirmed_horizontal_traverse_starts_folder_at_first_level_photo(tmp_path):
+def test_confirmed_horizontal_traverse_starts_folder_after_first_level_photo(tmp_path):
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
     input_dir.mkdir()
@@ -238,9 +238,12 @@ def test_confirmed_horizontal_traverse_starts_folder_at_first_level_photo(tmp_pa
 
     assert result.folder_count == 2
     assert result.images[3].source.name == "004.jpg"
-    assert result.images[3].starts_new_folder is True
-    assert result.images[3].start_reason == "horizontal-traverse"
+    assert result.images[3].destination.parent.name == "inspection_run_001"
     assert result.images[3].altitude == 10.5
+    assert result.images[4].source.name == "005.jpg"
+    assert result.images[4].destination.parent.name == "inspection_run_002"
+    assert result.images[4].starts_new_folder is True
+    assert result.images[4].start_reason == "horizontal-traverse"
     assert result.images[4].altitude == 10.7
     assert not [image for image in result.images if image.start_reason == "altitude-reversal"]
 

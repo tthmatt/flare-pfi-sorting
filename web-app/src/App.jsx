@@ -13,7 +13,7 @@ const CHANGELOG = [
     version: '0.3.1',
     date: '2026-08-03',
     changes: [
-      'Added confirmed horizontal-traverse folder starts between opposite vertical facade passes.',
+      'Added confirmed horizontal-traverse folder starts after the first level photo between opposite vertical facade passes.',
       'Kept pitched-down markers primary and rejected same-direction level pauses to avoid false splits.',
     ],
   },

@@ -123,7 +123,7 @@ export function inferHorizontalTraverseStarts(ordered, pitchStarts, settings) {
     const sustained = runSteps >= settings.altitudeMinSteps && runSpan >= settings.altitudeMinSpan;
 
     if (!traverse && isHorizontal && sustained) {
-      traverse = { start: index, count: 1, firstAltitude: altitude, lastAltitude: altitude, priorDirection: runDirection, nextDirection: 0, nextSteps: 0, nextFirstIndex: null };
+      traverse = { start: index, boundary: null, count: 1, firstAltitude: altitude, lastAltitude: altitude, priorDirection: runDirection, nextDirection: 0, nextSteps: 0, nextFirstIndex: null };
       previousAltitude = altitude;
       continue;
     }
@@ -133,6 +133,7 @@ export function inferHorizontalTraverseStarts(ordered, pitchStarts, settings) {
           && Math.abs(altitude - traverse.lastAltitude) <= settings.altitudeTolerance;
         if (level) {
           traverse.count += 1;
+          if (traverse.count === settings.horizontalMinPhotos) traverse.boundary = index;
           traverse.lastAltitude = altitude;
           previousAltitude = altitude;
           continue;
@@ -161,7 +162,7 @@ export function inferHorizontalTraverseStarts(ordered, pitchStarts, settings) {
           if (traverse) {
             const nextSpan = Math.abs(altitude - traverse.lastAltitude);
             if (traverse.nextSteps >= settings.altitudeMinSteps && nextSpan >= settings.altitudeMinSpan) {
-              starts.add(traverse.start);
+              starts.add(traverse.boundary);
               replacedReversals.add(traverse.nextFirstIndex);
               runDirection = direction;
               runSteps = traverse.nextSteps;
