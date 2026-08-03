@@ -2,7 +2,7 @@ https://flare-pfi-sorting.vercel.app/
 
 # Flare PFI Sorting
 
-**Current version:** 0.2.0
+**Current version:** 0.3.1
 
 A dependency-free Python command-line tool for sorting drone building-inspection images into inspection run folders. The sorter reads embedded EXIF/XMP-style metadata and starts a new folder whenever the camera or gimbal pitch is detected as straight down (approximately 90 degrees).
 
@@ -21,6 +21,8 @@ The sorter looks for common embedded pitch fields used by drone vendors and meta
 - `GimbalPitch`
 
 Both `90` and `-90` are treated as pitched down because different vendors use different signs. The default tolerance is `2` degrees, so `-89.4` and `91.2` count as down-facing markers.
+
+The optional altitude fallback reads `RelativeAltitude` first and uses `AbsoluteAltitude`/`GPSAltitude` only as a fallback. Altitude inference is disabled by default. When enabled, it ignores altitude changes under `0.75 m`, requires at least two significant steps and at least `5 m` of vertical span on both sides of a turn, and suppresses altitude splitting immediately after real pitched-down markers. A confirmed horizontal traverse starts the next folder at the second near-level, near-0° pitch photo between sustained vertical passes in opposite directions. The first horizontal photo stays in the prior folder, and a level pause that continues in the same direction does not split.
 
 ## Web GUI for non-technical users
 
@@ -48,8 +50,9 @@ The page runs locally at `http://127.0.0.1:8765/` by default and opens your brow
 2. Paste the full path where sorted folders should be created.
 3. Leave **Copy files** selected unless you intentionally want originals moved.
 4. Optionally enable **Skip pitched-down marker photos in output** to use marker photos only as split points.
-5. Optionally enable **Preview only** to confirm the folder plan without writing files.
-6. Click **Sort inspection images**.
+5. Optionally enable **Infer missed altitude turns** only when a flight may be missing pitched-down marker photos.
+6. Optionally enable **Preview only** to confirm the folder plan without writing files.
+7. Click **Sort inspection images**.
 ## Installation
 
 Run directly from this repository:
@@ -111,9 +114,28 @@ With the example above, the output would skip `DJI_0002.JPG` and `DJI_0004.JPG` 
 - `--folder-prefix NAME`: change folder names from `inspection_run_001` to `NAME_001`.
 - `--marker-policy same-folder`: keep a pitched-down marker in the current folder and start the following image in the next folder.
 - `--skip-markers`: use pitched-down marker photos to split folders, but do not copy or move those marker photos into the output folders.
+- `--infer-altitude-turns`: optional fallback that infers missed markers from sustained altitude reversals. Disabled by default.
+- `--altitude-tolerance METRES`: ignore altitude changes smaller than this many metres during optional altitude inference. Default: `0.75`.
 
 
 ## Changelog
+
+### 0.3.1 - 2026-08-03
+
+- Start a new folder after the first photo of a confirmed horizontal traverse between opposite vertical facade passes.
+- Require two near-level, near-0° pitch photos plus sustained vertical movement on both sides.
+- Keep pitched-down markers primary and avoid duplicate altitude or horizontal-traverse folders around them.
+- Record `horizontal-traverse` as a distinct folder start reason.
+
+### 0.3.0 - 2026-07-10
+
+- Add optional altitude-reversal fallback splitting for missed pitched-down marker photos.
+- Require sustained, confirmed altitude turns instead of one-photo altitude direction changes.
+- Preserve folder start reasons (`first-image`, `pitched-down`, `altitude-reversal`) in CLI output, local web results, browser previews, and CSV reports.
+- Prefer `RelativeAltitude` over absolute/GPS altitude fallback metadata.
+- Treat both `+90°` and `-90°` as pitched-down markers in the browser app.
+
+
 
 ### 0.2.0 - 2026-07-10
 

@@ -37,6 +37,8 @@ class WebSortRequest:
     dry_run: bool
     folder_prefix: str
     skip_markers: bool
+    infer_altitude_turns: bool
+    altitude_tolerance: float
 
     def to_options(self) -> SortOptions:
         return SortOptions(
@@ -49,6 +51,8 @@ class WebSortRequest:
             dry_run=self.dry_run,
             folder_prefix=self.folder_prefix,
             skip_markers=self.skip_markers,
+            infer_altitude_turns=self.infer_altitude_turns,
+            altitude_tolerance=self.altitude_tolerance,
         )
 
 
@@ -158,6 +162,11 @@ def parse_sort_request(form: dict[str, str]) -> WebSortRequest:
     except ValueError as exc:
         raise ValueError("Pitch tolerance must be a number of degrees.") from exc
 
+    try:
+        altitude_tolerance = float(form.get("altitude_tolerance", "0.75"))
+    except ValueError as exc:
+        raise ValueError("Altitude tolerance must be a number.") from exc
+
     folder_prefix = form.get("folder_prefix", "inspection_run").strip() or "inspection_run"
     return WebSortRequest(
         input_dir=input_dir,
@@ -169,6 +178,8 @@ def parse_sort_request(form: dict[str, str]) -> WebSortRequest:
         dry_run=form.get("dry_run") == "on",
         folder_prefix=folder_prefix,
         skip_markers=form.get("skip_markers") == "on",
+        infer_altitude_turns=form.get("infer_altitude_turns") == "on",
+        altitude_tolerance=altitude_tolerance,
     )
 
 
@@ -223,14 +234,14 @@ def render_page(
 <body>
   <header>
     <h1>Drone Image Sorter</h1>
-    <p>Sort building-inspection photos into folders automatically. Enter your image folder, choose where the sorted folders should go, and click one button — no command line needed.</p>
+    <p>Sort building-inspection photos into folders automatically. Pitched-down photos are the primary split rule; if one was missed, altitude reversal can start the next folder as a fallback — no command line needed.</p>
   </header>
   <main>
     <section class="card">
       <div class="steps">
         <div class="step"><strong>1. Pick source</strong><span class="hint">The folder with the original drone images.</span></div>
         <div class="step"><strong>2. Pick destination</strong><span class="hint">Where inspection_run folders will be created.</span></div>
-        <div class="step"><strong>3. Sort</strong><span class="hint">A new folder starts at each ±90° pitch marker.</span></div>
+        <div class="step"><strong>3. Sort</strong><span class="hint">A new folder starts at each pitch marker, or at an altitude reversal if the marker was missed.</span></div>
       </div>
     </section>
 
@@ -260,6 +271,11 @@ def render_page(
             <div class="hint">Default is 2°, so 88° to 92° counts as pitched down.</div>
           </div>
           <div>
+            <label for="altitude_tolerance">Altitude reversal tolerance</label>
+            <input id="altitude_tolerance" name="altitude_tolerance" type="number" step="0.05" min="0" value="{_value(values, 'altitude_tolerance', '0.75')}">
+            <div class="hint">Metres. Used only when optional altitude inference is enabled.</div>
+          </div>
+          <div>
             <label for="folder_prefix">Folder name prefix</label>
             <input id="folder_prefix" name="folder_prefix" type="text" value="{_value(values, 'folder_prefix', 'inspection_run')}">
           </div>
@@ -275,6 +291,7 @@ def render_page(
           <label class="check"><input type="checkbox" name="recursive" {_checked(values, 'recursive')}> <span><strong>Include subfolders</strong><br><span class="hint">Scan nested folders under the source folder.</span></span></label>
           <label class="check"><input type="checkbox" name="dry_run" {_checked(values, 'dry_run')}> <span><strong>Preview only</strong><br><span class="hint">Show what would happen without copying or moving any files.</span></span></label>
           <label class="check"><input type="checkbox" name="skip_markers" {_checked(values, 'skip_markers')}> <span><strong>Remove pitched-down marker photos from output</strong><br><span class="hint">They still split folders, but they will not be copied or moved into the sorted folders.</span></span></label>
+          <label class="check"><input type="checkbox" name="infer_altitude_turns" {_checked(values, 'infer_altitude_turns')}> <span><strong>Infer missed altitude turns</strong><br><span class="hint">Optional fallback. Requires a sustained, confirmed altitude reversal; one-photo direction changes are ignored.</span></span></label>
         </div>
         <div class="actions">
           <button type="submit">Sort inspection images</button>
@@ -323,12 +340,14 @@ def _render_result(result: SortResult | None) -> str:
 
     rows = []
     for image in result.images:
-        marker = "Starts folder" if image.starts_new_folder else ""
+        marker = image.start_reason or ("Starts folder" if image.starts_new_folder else "")
         pitch = "Unknown" if image.pitch is None else f"{image.pitch:.2f}°"
+        altitude = "Unknown" if image.altitude is None else f"{image.altitude:.2f} m"
         rows.append(
             "<tr>"
             f"<td>{escape(marker)}</td>"
             f"<td>{escape(pitch)}</td>"
+            f"<td>{escape(altitude)}</td>"
             f"<td class=\"path\">{escape(str(image.source))}</td>"
             f"<td class=\"path\">{escape(str(image.destination))}</td>"
             "</tr>"
@@ -342,7 +361,7 @@ def _render_result(result: SortResult | None) -> str:
         '<section class="card">'
         '<h2>Results</h2>'
         f'<p>Processed {len(result.images)} images into {result.folder_count} folders.{skipped_note}</p>'
-        '<table><thead><tr><th>Marker</th><th>Pitch</th><th>Source</th><th>Destination</th></tr></thead>'
+        '<table><thead><tr><th>Start reason</th><th>Pitch</th><th>Altitude</th><th>Source</th><th>Destination</th></tr></thead>'
         f'<tbody>{"".join(rows)}</tbody></table>'
         '</section>'
     )
