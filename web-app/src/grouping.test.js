@@ -41,6 +41,25 @@ test('metadata reads use bounded concurrency, preserve input order, and read eve
   assert.deepEqual([...reads.values()], Array(files.length).fill(1));
 });
 
+test('GPS indices and filenames use deterministic capture order without changing input order', async () => {
+  const files = ['late.jpg', 'missing.jpg', 'b.jpg', 'a.jpg', '03.jpg', '04.jpg', '05.jpg', '06.jpg', 'z.jpg', 'zz.jpg'].map((name) => ({ name, size: 1, lastModified: 0 }));
+  const metadata = new Map([
+    ['late.jpg', [6, 20, 103.800060]], ['missing.jpg', [null, null, 103.800060]],
+    ['b.jpg', [1, 20, 103.8]], ['a.jpg', [0, 10, 103.8]], ['03.jpg', [2, 30, 103.8]],
+    ['04.jpg', [3, 30, 103.8]], ['05.jpg', [4, 30, 103.8]], ['06.jpg', [5, 30, 103.800060]], ['z.jpg', [7, 10, 103.800060]], ['zz.jpg', [7, null, 103.800060]],
+  ]);
+  const result = await analyzeFiles(files, { ...analysisSettings, proposeGpsTurns: true, gpsWindowSize: 3, gpsMinDisplacementMeters: 4, gpsMaxClusterRadiusMeters: 3, gpsMinSignalRatio: 2, gpsMaxGapSeconds: 30 }, null, { readMetadata: async (file) => {
+    const [second, altitude, longitude] = metadata.get(file.name);
+    return { pitch: -25, captureDate: second == null ? null : new Date(1786451400000 + second * 1000), altitude, altitudeSource: 'relative', latitude: 1.3, longitude, warnings: [] };
+  } });
+  assert.deepEqual(result.analyses.map((item) => item.file.name), files.map((file) => file.name));
+  assert.deepEqual(result.captureOrderedAnalyses.map((item) => item.file.name), ['a.jpg', 'b.jpg', '03.jpg', '04.jpg', '05.jpg', '06.jpg', 'late.jpg', 'z.jpg', 'zz.jpg', 'missing.jpg']);
+  assert.equal(result.turnCandidates[0].boundaryFile, '06.jpg');
+  assert.equal(result.turnCandidates[0].detectedAtFile, 'z.jpg');
+  assert.equal(result.turnCandidates[0].evidenceStartFile, 'a.jpg');
+  assert.equal(result.turnCandidates[0].evidenceEndFile, 'z.jpg');
+});
+
 test('progress is throttled, monotonic, and guaranteed to finish at the total', async () => {
   const files = Array.from({ length: 8 }, (_, index) => ({ name: `${index}.jpg`, size: 1 }));
   let clock = 0;

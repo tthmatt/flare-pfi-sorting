@@ -3,10 +3,15 @@ import flareLogo from './assets/flare-dynamics-logo.svg';
 import { analyzeFiles } from './grouping.js';
 import { canPreviewInBrowser, getDisplayPath, getFileName, isImageFile, safePathPart } from './files.js';
 import { downloadBlob, makeZip } from './reports.js';
+import { createCalibrationReport } from './calibration.js';
 import { analysisProgress, analysisSummary, logStatus } from './telemetry.js';
 
-const APP_VERSION = '0.3.5';
+const APP_VERSION = '0.3.6';
 const CHANGELOG = [
+  {
+    version: '0.3.6', date: '2026-08-11',
+    changes: ['Hardened capture-order GPS evidence and transition-wide marker suppression.', 'Added a bounded, local-only calibration reviewer and redacted JSON report.'],
+  },
   {
     version: '0.3.5', date: '2026-08-11',
     changes: ['Accelerated large browser analyses with single-pass metadata parsing, four bounded readers, and throttled progress.', 'Limited initial thumbnails to 100 while keeping every image in folder tables and exports.'],
@@ -95,6 +100,8 @@ export default function App() {
   const [files, setFiles] = useState([]);
   const [groups, setGroups] = useState([]);
   const [analyses, setAnalyses] = useState([]);
+  const [captureOrderedAnalyses, setCaptureOrderedAnalyses] = useState([]);
+  const [calibrationKey, setCalibrationKey] = useState(0);
   const [skippedMarkerCount, setSkippedMarkerCount] = useState(0);
   const [turnCandidates, setTurnCandidates] = useState([]);
   const [turnReasonCounts, setTurnReasonCounts] = useState({});
@@ -133,6 +140,7 @@ export default function App() {
 
   function updateSetting(key, value) {
     setSettings((current) => ({ ...current, [key]: value }));
+    setCalibrationKey((keyValue) => keyValue + 1);
   }
 
   function handleFileList(fileList) {
@@ -140,6 +148,8 @@ export default function App() {
     setFiles(selected);
     setGroups([]);
     setAnalyses([]);
+    setCaptureOrderedAnalyses([]);
+    setCalibrationKey((key) => key + 1);
     setSkippedMarkerCount(0);
     setTurnCandidates([]);
     setTurnReasonCounts({});
@@ -154,6 +164,7 @@ export default function App() {
     }
     setIsWorking(true);
     setGroups([]);
+    setCalibrationKey((key) => key + 1);
     setSkippedMarkerCount(0);
     try {
       const result = await analyzeFiles(imageFiles, settings, (done, total) => {
@@ -161,6 +172,7 @@ export default function App() {
       });
       setGroups(result.groups);
       setAnalyses(result.analyses);
+      setCaptureOrderedAnalyses(result.captureOrderedAnalyses);
       setSkippedMarkerCount(result.skippedMarkerCount);
       setTurnCandidates(result.turnCandidates);
       setTurnReasonCounts(result.turnCandidateReasonCounts);
@@ -292,7 +304,7 @@ export default function App() {
           </div>
 
           {analyses.length > 0 && <TelemetryCoverage analyses={analyses} />}
-          {analyses.length > 0 && settings.proposeGpsTurns && <TurnProposalPanel proposals={turnCandidates} reasons={turnReasonCounts} analyses={analyses} />}
+          {analyses.length > 0 && settings.proposeGpsTurns && <TurnProposalPanel key={calibrationKey} proposals={turnCandidates} reasons={turnReasonCounts} analyses={captureOrderedAnalyses} settings={settings} />}
 
           <section className="panel">
             <div className="panel-heading">
@@ -311,23 +323,49 @@ export default function App() {
   );
 }
 
-function TurnProposalPanel({ proposals, reasons, analyses }) {
-  const insufficient = ['insufficient-altitude', 'inconsistent-altitude-source', 'insufficient-gps', 'missing-time', 'non-increasing-time', 'excessive-time-gap'];
-  const coverageProblem = insufficient.some((reason) => reasons[reason]);
+function TurnProposalPanel({ proposals, reasons, analyses, settings }) {
+  const [active, setActive] = useState(0); const [decisions, setDecisions] = useState({});
+  const [moveIndex, setMoveIndex] = useState(null); const [missedIndex, setMissedIndex] = useState('');
+  const [missed, setMissed] = useState([]); const [fullReview, setFullReview] = useState(false);
+  const proposal = proposals[active];
+  const start = proposal ? Math.max(0, proposal.boundaryIndex - 3) : 0;
+  const end = proposal ? Math.min(analyses.length - 1, proposal.boundaryIndex + 3) : -1;
+  const window = analyses.slice(start, end + 1);
+  const decide = (state, index = proposal.boundaryIndex) => {
+    setDecisions((current) => ({ ...current, [active]: { state, boundaryIndex: index, boundaryFile: analyses[index]?.file?.name ?? proposal.boundaryFile } }));
+    setMoveIndex(null);
+  };
+  const downloadReport = () => {
+    const report = createCalibrationReport({ appVersion: APP_VERSION, settings, analyses, proposals, reasonCounts: reasons, decisions, missedBoundaries: missed, fullFlightReviewed: fullReview });
+    downloadBlob(new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' }), 'gps_turn_calibration.json');
+  };
   return (
     <section className="panel proposal-panel">
       <div className="panel-heading"><h2>Experimental GPS turn proposals</h2><span>Review only</span></div>
       <p>These calibration candidates do not change folders and are not included in the ZIP. Raw coordinates are never displayed.</p>
-      {!proposals.length && <p className="empty-state">{coverageProblem ? 'Insufficient GPS, time, or eligible altitude coverage.' : 'No qualifying turn was found.'}</p>}
-      {proposals.map((proposal) => {
-        const evidence = proposal.evidence; const detected = analyses[proposal.detectedAtIndex];
+      <h3>Capture-time flight order</h3>
+      {!proposals.length && <p className="empty-state">No qualifying turn was found.</p>}
+      {Object.entries(reasons).filter(([, count]) => count > 0).map(([reason, count]) => <p key={reason}>{reason}: <strong>{count}</strong></p>)}
+      {proposal && (() => {
+        const evidence = proposal.evidence;
         return <article className="proposal-item" key={`${proposal.boundaryIndex}-${proposal.detectedAtIndex}`}>
+          <span>Proposal {active + 1} of {proposals.length} • {decisions[active]?.state ?? 'unreviewed'}</span>
           <strong>{proposal.boundaryFile}: {evidence.priorDirection}→{evidence.nextDirection}</strong>
           <span>GPS displacement {evidence.gpsDisplacementM.toFixed(2)} m • cluster radii {evidence.priorClusterRadiusM.toFixed(2)} / {evidence.nextClusterRadiusM.toFixed(2)} m</span>
-          <span>Altitude spans {evidence.priorAltitudeSpanM.toFixed(1)} / {evidence.nextAltitudeSpanM.toFixed(1)} m • evidence range {proposal.boundaryFile}→{detected?.file?.name ?? `image ${proposal.detectedAtIndex + 1}`} ({evidence.priorGpsSamples}+{evidence.nextGpsSamples} GPS samples)</span>
-          <span>Maximum time gap {evidence.maximumTimeGapSeconds.toFixed(1)} s • detected at {detected?.file?.name ?? `image ${proposal.detectedAtIndex + 1}`}</span>
+          <span>Evidence {proposal.evidenceStartFile}→{proposal.evidenceEndFile} • detected at {proposal.detectedAtFile}</span>
+          <div className="preview-grid">{window.map((item, offset) => { const index = start + offset; return <article className="preview-card" key={item.file.name}>
+            <ImageThumbnail file={item.file} /><strong>{item.file.name}</strong><span>#{index} • {formatPitch(item.pitch)}</span><span>{formatAltitude(item.altitude)} • {item.altitudeSource ?? 'unknown source'}</span>
+          </article>; })}</div>
+          <div className="button-grid"><button type="button" onClick={() => decide('confirmed')}>Correct boundary</button><button type="button" className="secondary" onClick={() => decide('rejected')}>Wrong proposal</button><button type="button" className="secondary" onClick={() => setMoveIndex(proposal.boundaryIndex)}>Move boundary</button></div>
+          {moveIndex !== null && <div><select value={moveIndex} onChange={(event) => setMoveIndex(Number(event.target.value))}>{window.map((item, offset) => <option key={item.file.name} value={start + offset}>{item.file.name}</option>)}</select><button type="button" onClick={() => decide('moved', moveIndex)}>Save moved boundary</button></div>}
+          <div className="button-grid"><button type="button" className="secondary" disabled={active === 0} onClick={() => setActive(active - 1)}>Previous</button><button type="button" className="secondary" disabled={active === proposals.length - 1} onClick={() => setActive(active + 1)}>Next</button></div>
         </article>;
-      })}
+      })()}
+      <label>Missed GPS proposal <select value={missedIndex} onChange={(event) => setMissedIndex(event.target.value)}><option value="">Choose capture-order filename</option>{analyses.map((item, index) => <option value={index} key={`${index}-${item.file.name}`}>{item.file.name}</option>)}</select></label>
+      <button type="button" className="secondary" disabled={missedIndex === ''} onClick={() => { const index = Number(missedIndex); setMissed((current) => [...current, { index, fileName: analyses[index].file.name }]); setMissedIndex(''); }}>Record missed boundary</button>
+      {missed.map((item) => <span key={`${item.index}-${item.fileName}`}>Missed: {item.fileName}</span>)}
+      <label className="check-row"><input type="checkbox" checked={fullReview} onChange={(event) => setFullReview(event.target.checked)} />I reviewed the full flight for missed boundaries.</label>
+      <button type="button" className="download" onClick={downloadReport}>Download GPS calibration report</button>
     </section>
   );
 }

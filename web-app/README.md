@@ -1,6 +1,6 @@
 # Drone Image Sorter Web App
 
-**Current version:** 0.3.5
+**Current version:** 0.3.6
 
 Browser-based version of the PFI drone inspection image sorter for deployment on Vercel or any static hosting provider.
 
@@ -44,6 +44,12 @@ Import this GitHub repository into Vercel and use these settings:
 
 
 ## Changelog
+
+### 0.3.6 - 2026-08-11
+
+- Corrected GPS proposal filenames and evidence to consistently use capture-time flight order.
+- Added transition-wide marker suppression, complete rejection counts, and auditable redacted evidence.
+- Added a seven-image local calibration reviewer and separate JSON report download.
 
 ### 0.3.5 - 2026-08-11
 

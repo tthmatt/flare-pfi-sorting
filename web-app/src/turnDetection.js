@@ -33,6 +33,8 @@ const timeMs = (record) => record.captureTime ?? record.captureDate?.getTime?.()
 const addReason = (counts, reason) => { counts[reason] = (counts[reason] ?? 0) + 1; };
 
 export function analyzeGpsTurns(records, settings = {}) {
+  // Every index returned by this function refers exclusively to the supplied
+  // capture-time flight order. Callers must sort once before invoking it.
   const options = { ...GPS_TURN_DEFAULTS, ...settings }; const reasonCounts = {}; const proposals = [];
   const runs = altitudeRuns(records, options.altitudeTolerance ?? 0.75).filter((run) => run.steps >= (options.altitudeMinSteps ?? 2) && Math.abs(records[run.end].altitude - records[run.start].altitude) >= (options.altitudeMinSpan ?? 5));
   if (runs.length < 2) addReason(reasonCounts, 'insufficient-altitude');
@@ -41,8 +43,11 @@ export function analyzeGpsTurns(records, settings = {}) {
     if (prior.direction === next.direction) { addReason(reasonCounts, 'same-direction'); continue; }
     if (prior.source !== next.source || prior.end >= next.start) { addReason(reasonCounts, 'inconsistent-altitude-source'); continue; }
     const boundaryIndex = next.start; const suppression = options.altitudeMarkerSuppression ?? 2;
+    const transitionStartIndex = prior.end; const transitionEndIndex = next.start;
+    const suppressionStartIndex = Math.max(0, transitionStartIndex - suppression);
+    const suppressionEndIndex = Math.min(records.length - 1, transitionEndIndex + suppression);
     const markerPitch = Math.abs(options.markerPitch ?? -90); const pitchTolerance = options.tolerance ?? 2;
-    if (records.slice(Math.max(0, boundaryIndex - suppression), boundaryIndex + suppression + 1).some((record) => record.pitch != null && Math.abs(Math.abs(record.pitch) - markerPitch) <= pitchTolerance)) { addReason(reasonCounts, 'nearby-pitched-down-marker'); continue; }
+    if (records.slice(suppressionStartIndex, suppressionEndIndex + 1).some((record) => record.pitch != null && Math.abs(Math.abs(record.pitch) - markerPitch) <= pitchTolerance)) { addReason(reasonCounts, 'nearby-pitched-down-marker'); continue; }
     const validGps = (index) => records[index].latitude != null && records[index].longitude != null;
     const priorIndices = Array.from({ length: prior.end - prior.start + 1 }, (_, offset) => prior.start + offset).filter(validGps).slice(-options.gpsWindowSize);
     const nextIndices = Array.from({ length: next.end - next.start + 1 }, (_, offset) => next.start + offset).filter(validGps).slice(0, options.gpsWindowSize);
@@ -57,9 +62,17 @@ export function analyzeGpsTurns(records, settings = {}) {
     const [priorCentre, priorClusterRadiusM] = cluster(points(priorIndices)); const [nextCentre, nextClusterRadiusM] = cluster(points(nextIndices));
     if (Math.max(priorClusterRadiusM, nextClusterRadiusM) > options.gpsMaxClusterRadiusMeters) { addReason(reasonCounts, 'noisy-gps-cluster'); continue; }
     const gpsDisplacementM = haversineMeters(priorCentre, nextCentre);
-    const threshold = Math.max(options.gpsMinDisplacementMeters, options.gpsMinSignalRatio * Math.max(priorClusterRadiusM, nextClusterRadiusM, 0.5));
-    if (gpsDisplacementM < threshold) { addReason(reasonCounts, 'insufficient-displacement'); continue; }
-    proposals.push({ boundaryIndex, detectedAtIndex: Math.max(next.end, nextIndices.at(-1)), boundaryFile: fileName(records[boundaryIndex]), reason: 'gps-horizontal-turn', status: 'proposed', evidence: {
+    const noiseFloorM = Math.max(priorClusterRadiusM, nextClusterRadiusM, 0.5);
+    const requiredDisplacementM = Math.max(options.gpsMinDisplacementMeters, options.gpsMinSignalRatio * noiseFloorM);
+    const gpsSignalRatio = gpsDisplacementM / noiseFloorM;
+    if (gpsDisplacementM < requiredDisplacementM) { addReason(reasonCounts, 'insufficient-displacement'); continue; }
+    const detectedAtIndex = Math.max(next.end, nextIndices.at(-1));
+    const evidenceStartIndex = prior.start; const evidenceEndIndex = next.end;
+    proposals.push({ boundaryIndex, detectedAtIndex, boundaryFile: fileName(records[boundaryIndex]), detectedAtFile: fileName(records[detectedAtIndex]),
+      evidenceStartIndex, evidenceEndIndex, evidenceStartFile: fileName(records[evidenceStartIndex]), evidenceEndFile: fileName(records[evidenceEndIndex]),
+      transitionStartIndex, transitionEndIndex, transitionStartFile: fileName(records[transitionStartIndex]), transitionEndFile: fileName(records[transitionEndIndex]),
+      suppressionStartIndex, suppressionEndIndex, requiredDisplacementM, gpsSignalRatio,
+      reason: 'gps-horizontal-turn', status: 'proposed', evidence: {
       priorDirection: prior.direction > 0 ? 'up' : 'down', nextDirection: next.direction > 0 ? 'up' : 'down',
       priorAltitudeSpanM: Math.abs(records[prior.end].altitude - records[prior.start].altitude), nextAltitudeSpanM: Math.abs(records[next.end].altitude - records[next.start].altitude),
       gpsDisplacementM, priorClusterRadiusM, nextClusterRadiusM, priorGpsSamples: priorIndices.length, nextGpsSamples: nextIndices.length, maximumTimeGapSeconds,
