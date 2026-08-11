@@ -477,3 +477,15 @@ th {
     padding: 20px;
   }
 }
+
+.coverage-grid {
+  display: grid;
+  gap: 8px 18px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.coverage-grid span {
+  color: var(--muted);
+  display: flex;
+  justify-content: space-between;
+}

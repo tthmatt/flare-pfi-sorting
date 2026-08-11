@@ -61,11 +61,11 @@ export async function analyzeFiles(files, settings, onProgress) {
     try {
       analyses.push({ file, ...await readImageMetadata(file), error: null });
     } catch (error) {
-      analyses.push({ file, pitch: null, altitude: null, captureDate: null, error: error instanceof Error ? error.message : String(error) });
+      analyses.push({ file, pitch: null, captureDate: null, altitude: null, altitudeSource: null, latitude: null, longitude: null, flightYaw: null, gimbalYaw: null, warnings: ['missing-pitch', 'missing-capture-time', 'missing-altitude', 'missing-gps'], error: error instanceof Error ? error.message : String(error) });
     }
     onProgress?.(index + 1, images.length);
   }
-  return buildGroups(analyses, settings);
+  return { ...buildGroups(analyses, settings), analyses };
 }
 
 export function altitudeDirection(previous, current, tolerance) {

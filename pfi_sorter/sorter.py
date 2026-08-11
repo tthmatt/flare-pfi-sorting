@@ -10,7 +10,7 @@ stored in a vendor-specific block.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 import re
 import shutil
@@ -50,12 +50,47 @@ ALTITUDE_FALLBACK_PATTERNS = [
     re.compile(rb"(?:exif:)?GPSAltitude\s*=\s*['\"](?P<value>[-+]?\d+(?:\.\d+)?)['\"]", re.I),
     re.compile(rb"<(?:[^:>]+:)?GPSAltitude>\s*(?P<value>[-+]?\d+(?:\.\d+)?)\s*</", re.I),
 ]
+ABSOLUTE_ALTITUDE_PATTERNS = ALTITUDE_FALLBACK_PATTERNS[:2]
+GPS_ALTITUDE_PATTERNS = ALTITUDE_FALLBACK_PATTERNS[2:]
 
 DATETIME_PATTERNS = [
     re.compile(rb"(?:exif:)?DateTimeOriginal\s*=\s*['\"](?P<value>[^'\"]+)['\"]", re.I),
     re.compile(rb"<(?:[^:>]+:)?DateTimeOriginal>\s*(?P<value>[^<]+)\s*</", re.I),
     re.compile(rb"(?:xmp:)?CreateDate\s*=\s*['\"](?P<value>[^'\"]+)['\"]", re.I),
+    re.compile(rb"<(?:[^:>]+:)?CreateDate>\s*(?P<value>[^<]+)\s*</", re.I),
 ]
+
+GPS_LATITUDE_PATTERNS = [
+    re.compile(rb"(?:exif:|drone-dji:)?GPSLatitude\s*=\s*['\"](?P<value>[^'\"]*)['\"]", re.I),
+    re.compile(rb"<(?:[^:>]+:)?GPSLatitude>\s*(?P<value>[^<]*)\s*</", re.I),
+]
+GPS_LONGITUDE_PATTERNS = [
+    re.compile(rb"(?:exif:|drone-dji:)?GPSLongitude\s*=\s*['\"](?P<value>[^'\"]*)['\"]", re.I),
+    re.compile(rb"<(?:[^:>]+:)?GPSLongitude>\s*(?P<value>[^<]*)\s*</", re.I),
+]
+FLIGHT_YAW_PATTERNS = [
+    re.compile(rb"(?:drone-dji:)?FlightYawDegree\s*=\s*['\"](?P<value>[-+]?\d+(?:\.\d+)?)['\"]", re.I),
+    re.compile(rb"<(?:[^:>]+:)?FlightYawDegree>\s*(?P<value>[-+]?\d+(?:\.\d+)?)\s*</", re.I),
+]
+GIMBAL_YAW_PATTERNS = [
+    re.compile(rb"(?:drone-dji:)?GimbalYawDegree\s*=\s*['\"](?P<value>[-+]?\d+(?:\.\d+)?)['\"]", re.I),
+    re.compile(rb"<(?:[^:>]+:)?GimbalYawDegree>\s*(?P<value>[-+]?\d+(?:\.\d+)?)\s*</", re.I),
+]
+
+
+@dataclass(frozen=True)
+class ImageMetadata:
+    """Normalized telemetry extracted from one image metadata window."""
+
+    pitch: float | None
+    capture_datetime: datetime | None
+    altitude: float | None
+    altitude_source: Literal["relative", "absolute", "gps"] | None
+    latitude: float | None
+    longitude: float | None
+    flight_yaw: float | None
+    gimbal_yaw: float | None
+    warnings: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -109,47 +144,31 @@ def discover_images(input_dir: Path, recursive: bool = False) -> list[Path]:
 
     globber = input_dir.rglob("*") if recursive else input_dir.iterdir()
     images = [path for path in globber if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS]
-    return sorted(images, key=lambda path: (read_capture_datetime(path) or datetime.max, path.name.lower()))
+    return sorted(images, key=lambda path: (_datetime_sort_value(read_capture_datetime(path)), path.name.lower()))
 
 
 def read_pitch_degrees(path: Path) -> float | None:
     """Extract camera/gimbal pitch in degrees from common embedded metadata."""
 
-    data = _read_metadata_window(path)
-    for pattern in PITCH_PATTERNS:
-        match = pattern.search(data)
-        if not match:
-            continue
-        try:
-            return float(match.group("value"))
-        except ValueError:
-            return None
-    return None
+    return _parse_image_metadata(_read_metadata_window(path)).pitch
 
 
 def read_altitude(path: Path) -> float | None:
     """Extract drone altitude/height from common embedded metadata."""
 
-    data = _read_metadata_window(path)
-    relative = _first_float_match(data, RELATIVE_ALTITUDE_PATTERNS)
-    if relative is not None:
-        return relative
-    return _first_float_match(data, ALTITUDE_FALLBACK_PATTERNS)
+    return _parse_image_metadata(_read_metadata_window(path)).altitude
 
 
 def read_capture_datetime(path: Path) -> datetime | None:
     """Extract a capture timestamp from XMP-style metadata when present."""
 
-    data = _read_metadata_window(path)
-    for pattern in DATETIME_PATTERNS:
-        match = pattern.search(data)
-        if not match:
-            continue
-        raw = match.group("value").decode("utf-8", errors="ignore").strip()
-        parsed = _parse_datetime(raw)
-        if parsed is not None:
-            return parsed
-    return None
+    return _parse_image_metadata(_read_metadata_window(path)).capture_datetime
+
+
+def read_image_metadata(path: Path) -> ImageMetadata:
+    """Read a metadata window once and return all normalized telemetry."""
+
+    return _parse_image_metadata(_read_metadata_window(path))
 
 
 def sort_images(options: SortOptions) -> SortResult:
@@ -182,9 +201,16 @@ def sort_images(options: SortOptions) -> SortResult:
         raise FileNotFoundError(f"Input directory does not exist: {options.input_dir}")
 
     result = SortResult()
-    images = discover_images(options.input_dir, options.recursive)
-    pitches = [read_pitch_degrees(source) for source in images]
-    altitudes = [read_altitude(source) for source in images]
+    globber = options.input_dir.rglob("*") if options.recursive else options.input_dir.iterdir()
+    records = [
+        (path, read_image_metadata(path))
+        for path in globber
+        if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
+    ]
+    records.sort(key=lambda record: (_datetime_sort_value(record[1].capture_datetime), record[0].name.lower()))
+    images = [record[0] for record in records]
+    pitches = [record[1].pitch for record in records]
+    altitudes = [record[1].altitude for record in records]
     pitch_starts = [_is_downward_pitch(pitch, options.tolerance) for pitch in pitches]
     for index in range(1, len(pitch_starts)):
         if pitch_starts[index] and pitch_starts[index - 1]:
@@ -533,6 +559,80 @@ def _first_float_match(data: bytes, patterns: list[re.Pattern[bytes]]) -> float 
         except ValueError:
             return None
     return None
+
+
+def _first_text_match(data: bytes, patterns: list[re.Pattern[bytes]]) -> str | None:
+    for pattern in patterns:
+        match = pattern.search(data)
+        if match:
+            return match.group("value").decode("utf-8", errors="ignore").strip()
+    return None
+
+
+def _parse_coordinate(raw: str | None, maximum: float) -> tuple[float | None, bool]:
+    if raw is None:
+        return None, False
+    match = re.fullmatch(r"\s*([-+]?\d+(?:\.\d+)?)\s*([NSEW])?\s*", raw, re.I)
+    if not match:
+        return None, True
+    value = float(match.group(1))
+    hemisphere = (match.group(2) or "").upper()
+    if hemisphere in {"S", "W"}:
+        value = -abs(value)
+    elif hemisphere in {"N", "E"}:
+        value = abs(value)
+    if abs(value) > maximum:
+        return None, True
+    return value, False
+
+
+def _parse_image_metadata(data: bytes) -> ImageMetadata:
+    pitch = _first_float_match(data, PITCH_PATTERNS)
+    relative = _first_float_match(data, RELATIVE_ALTITUDE_PATTERNS)
+    absolute = _first_float_match(data, ABSOLUTE_ALTITUDE_PATTERNS)
+    gps_altitude = _first_float_match(data, GPS_ALTITUDE_PATTERNS)
+    if relative is not None:
+        altitude, altitude_source = relative, "relative"
+    elif absolute is not None:
+        altitude, altitude_source = absolute, "absolute"
+    elif gps_altitude is not None:
+        altitude, altitude_source = gps_altitude, "gps"
+    else:
+        altitude, altitude_source = None, None
+
+    capture_datetime = None
+    for pattern in DATETIME_PATTERNS:
+        match = pattern.search(data)
+        if match and (capture_datetime := _parse_datetime(match.group("value").decode("utf-8", errors="ignore").strip())):
+            break
+    latitude, invalid_latitude = _parse_coordinate(_first_text_match(data, GPS_LATITUDE_PATTERNS), 90)
+    longitude, invalid_longitude = _parse_coordinate(_first_text_match(data, GPS_LONGITUDE_PATTERNS), 180)
+    warnings = []
+    if pitch is None:
+        warnings.append("missing-pitch")
+    if capture_datetime is None:
+        warnings.append("missing-capture-time")
+    if altitude is None:
+        warnings.append("missing-altitude")
+    if latitude is None or longitude is None:
+        warnings.append("missing-gps")
+    if invalid_latitude:
+        warnings.append("invalid-latitude")
+    if invalid_longitude:
+        warnings.append("invalid-longitude")
+    return ImageMetadata(
+        pitch, capture_datetime, altitude, altitude_source, latitude, longitude,
+        _first_float_match(data, FLIGHT_YAW_PATTERNS),
+        _first_float_match(data, GIMBAL_YAW_PATTERNS), tuple(warnings),
+    )
+
+
+def _datetime_sort_value(value: datetime | None) -> float:
+    if value is None:
+        return float("inf")
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc).timestamp()
+    return value.timestamp()
 
 
 def _parse_datetime(raw: str) -> datetime | None:
