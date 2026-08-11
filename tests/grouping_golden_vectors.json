@@ -1,0 +1,53 @@
+{
+  "version": "0.3.1",
+  "settings": {
+    "tolerance": 2,
+    "markerPitch": -90,
+    "folderPrefix": "inspection_run",
+    "sortBy": "filename",
+    "altitudeTolerance": 0.75,
+    "altitudeMinSteps": 2,
+    "altitudeMinSpan": 5,
+    "altitudeMarkerSuppression": 2,
+    "horizontalMinPhotos": 2,
+    "horizontalPitchTolerance": 5
+  },
+  "vectors": [
+    {
+      "name": "duplicate markers are suppressed",
+      "inferAltitudeTurns": true,
+      "skipMarkers": false,
+      "images": [["001.jpg", -10, 10], ["002.jpg", -90, 18], ["003.jpg", -89, 18], ["004.jpg", -10, 20]],
+      "groups": [["001.jpg"], ["002.jpg", "003.jpg", "004.jpg"]],
+      "startReasons": ["first-image", "pitched-down"],
+      "skippedMarkerCount": 0
+    },
+    {
+      "name": "pitched-down marker has priority over nearby traverse",
+      "inferAltitudeTurns": true,
+      "skipMarkers": false,
+      "images": [["001.jpg", -10, 34], ["002.jpg", -10, 26], ["003.jpg", -10, 18], ["004.jpg", -90, 10.4], ["005.jpg", 0, 10.5], ["006.jpg", 0, 10.7], ["007.jpg", -10, 18], ["008.jpg", -10, 26]],
+      "groups": [["001.jpg", "002.jpg", "003.jpg"], ["004.jpg", "005.jpg", "006.jpg", "007.jpg", "008.jpg"]],
+      "startReasons": ["first-image", "pitched-down"],
+      "skippedMarkerCount": 0
+    },
+    {
+      "name": "same-direction level pause does not split",
+      "inferAltitudeTurns": true,
+      "skipMarkers": false,
+      "images": [["001.jpg", -10, 10], ["002.jpg", -10, 18], ["003.jpg", -10, 26], ["004.jpg", 0, 26.1], ["005.jpg", 0, 26.2], ["006.jpg", -10, 34], ["007.jpg", -10, 42]],
+      "groups": [["001.jpg", "002.jpg", "003.jpg", "004.jpg", "005.jpg", "006.jpg", "007.jpg"]],
+      "startReasons": ["first-image"],
+      "skippedMarkerCount": 0
+    },
+    {
+      "name": "skipped marker transfers its reason without an empty group",
+      "inferAltitudeTurns": true,
+      "skipMarkers": true,
+      "images": [["001.jpg", -10, 10], ["002.jpg", -90, 18], ["003.jpg", -89, 18], ["004.jpg", -10, 20]],
+      "groups": [["001.jpg"], ["004.jpg"]],
+      "startReasons": ["first-image", "pitched-down"],
+      "skippedMarkerCount": 2
+    }
+  ]
+}

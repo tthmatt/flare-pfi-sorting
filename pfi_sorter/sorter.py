@@ -19,6 +19,8 @@ from typing import Literal
 ImageAction = Literal["copy", "move"]
 FolderStartReason = Literal["first-image", "pitched-down", "altitude-reversal", "horizontal-traverse"]
 
+METADATA_READ_LIMIT = 2 * 1024 * 1024
+
 IMAGE_EXTENSIONS = {
     ".jpg",
     ".jpeg",
@@ -516,7 +518,7 @@ def _is_downward_pitch(pitch: float | None, tolerance: float) -> bool:
     return abs(abs(pitch) - 90.0) <= tolerance
 
 
-def _read_metadata_window(path: Path, limit: int = 512_000) -> bytes:
+def _read_metadata_window(path: Path, limit: int = METADATA_READ_LIMIT) -> bytes:
     with path.open("rb") as handle:
         return handle.read(limit)
 

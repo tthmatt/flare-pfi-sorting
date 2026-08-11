@@ -61,13 +61,14 @@ def test_react_preview_includes_every_group_file():
 
 def test_react_app_can_skip_marker_images_from_output():
     source = Path("web-app/src/App.jsx").read_text()
+    grouping_source = Path("web-app/src/grouping.js").read_text()
 
     assert "skipMarkers: false" in source
     assert "checked={settings.skipMarkers}" in source
-    assert "settings.skipMarkers && isMarker" in source
-    assert "const pitchStartsFolder = pitchStarts[index]" in source
-    assert "altitude-reversal" in source
-    assert "skippedMarkerCount += 1" in source
+    assert "settings.skipMarkers && marker" in grouping_source
+    assert "pitchStarts[index]" in grouping_source
+    assert "altitude-reversal" in grouping_source
+    assert "skippedMarkerCount += 1" in grouping_source
     assert "Skip pitched-down marker photos in output" in source
 
 
@@ -82,19 +83,21 @@ def test_react_app_removes_csv_report_by_default_with_option_to_keep_it():
 def test_react_app_records_folder_start_reasons_and_altitude_fallback():
     source = Path("web-app/src/App.jsx").read_text()
     grouping_source = Path("web-app/src/grouping.js").read_text()
+    metadata_source = Path("web-app/src/metadata.js").read_text()
+    reports_source = Path("web-app/src/reports.js").read_text()
 
-    assert "RELATIVE_ALTITUDE_PATTERNS" in source
-    assert "ALTITUDE_FALLBACK_PATTERNS" in source
+    assert "RELATIVE_ALTITUDE_PATTERNS" in metadata_source
+    assert "ALTITUDE_FALLBACK_PATTERNS" in metadata_source
     assert "inferAltitudeTurns: false" in source
     assert "altitudeDirection" in grouping_source
-    assert "startReason" in source
-    assert "altitude-reversal" in source
+    assert "startReason" in grouping_source
+    assert "altitude-reversal" in grouping_source
     assert "makeZip(groups, settings.keepFolderPaths, !settings.removeCsvReport)" in source
-    assert "if (includeCsvReport)" in source
+    assert "if (includeCsvReport)" in reports_source
 
 
 def test_react_marker_pitch_accepts_positive_and_negative_90():
-    source = Path("web-app/src/App.jsx").read_text()
+    source = Path("web-app/src/grouping.js").read_text()
 
     assert "Math.abs(Math.abs(pitch) - Math.abs(markerPitch)) <= tolerance" in source
 
@@ -106,16 +109,14 @@ def test_react_altitude_inference_requires_sustained_reversal():
     assert "previousRunSpan >= settings.altitudeMinSpan" in source
     assert "candidateSteps >= settings.altitudeMinSteps" in source
     assert "candidateSpan >= settings.altitudeMinSpan" in source
-    app_source = Path("web-app/src/App.jsx").read_text()
-    assert "settings.inferAltitudeTurns ? 'capture' : settings.sortBy" in app_source
+    assert "settings.inferAltitudeTurns ? 'capture' : settings.sortBy" in source
 
 
 def test_react_horizontal_traverse_is_confirmed_and_has_distinct_reason():
     source = Path("web-app/src/grouping.js").read_text()
-    app_source = Path("web-app/src/App.jsx").read_text()
 
     assert "horizontalMinPhotos" in source
     assert "horizontalPitchTolerance" in source
     assert "direction === -traverse.priorDirection" in source
     assert "replacedReversals" in source
-    assert "horizontal-traverse" in app_source
+    assert "horizontal-traverse" in source
