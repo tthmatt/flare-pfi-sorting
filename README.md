@@ -2,7 +2,7 @@ https://flare-pfi-sorting.vercel.app/
 
 # Flare PFI Sorting
 
-**Current version:** 0.3.3
+**Current version:** 0.3.4
 
 A dependency-free Python command-line tool for sorting drone building-inspection images into inspection run folders. The sorter reads embedded EXIF/XMP-style metadata and starts a new folder whenever the camera or gimbal pitch is detected as straight down (approximately 90 degrees).
 
@@ -23,6 +23,16 @@ The sorter looks for common embedded pitch fields used by drone vendors and meta
 Both `90` and `-90` are treated as pitched down because different vendors use different signs. The default tolerance is `2` degrees, so `-89.4` and `91.2` count as down-facing markers.
 
 The optional altitude fallback reads `RelativeAltitude` first and uses `AbsoluteAltitude`/`GPSAltitude` only as a fallback. Altitude inference is disabled by default. When enabled, it ignores altitude changes under `0.75 m`, requires at least two significant steps and at least `5 m` of vertical span on both sides of a turn, and suppresses altitude splitting immediately after real pitched-down markers. A confirmed horizontal traverse starts the next folder at the second near-level, near-0° pitch photo between sustained vertical passes in opposite directions. The first horizontal photo stays in the prior folder, and a level pause that continues in the same direction does not split.
+
+Version 0.3.4 also offers experimental, GPS-backed turn **proposals** with `--propose-gps-turns`. They are review-only shadow output for calibration with real flight sets: they never change folder membership, filenames, start reasons, CSV data, or ZIP contents. The detector requires three GPS samples per vertical pass, at least 4 m displacement, cluster radii no greater than 3 m, a 2:1 signal-to-noise ratio, and timestamp gaps no greater than 30 seconds. It uses relative or absolute altitude (not GPS altitude), and it does not use near-0° camera pitch as horizontal evidence.
+
+## Changelog
+
+### 0.3.4 - 2026-08-11
+
+- Added conservative GPS-backed horizontal-turn proposals in opt-in shadow mode.
+- Made timezone-free DJI capture timestamps UTC and added cross-runtime timestamp and GPS golden vectors.
+- Kept pitched-down grouping and optional altitude inference independent and unchanged; proposals require calibration with real flight sets before any production use.
 
 ## Web GUI for non-technical users
 

@@ -48,5 +48,7 @@ for (const vector of golden.vectors) {
     assert.deepEqual(result.groups.map((group) => group.files.map((item) => item.file.name)), vector.groups);
     assert.deepEqual(result.groups.map((group) => group.startReason), vector.startReasons);
     assert.equal(result.skippedMarkerCount, vector.skippedMarkerCount);
+    const shadow = buildGroups(analyses, { ...golden.settings, inferAltitudeTurns: vector.inferAltitudeTurns, skipMarkers: vector.skipMarkers, proposeGpsTurns: true });
+    assert.deepEqual(shadow, result, 'GPS shadow setting must not affect ZIP folder membership or reasons');
   });
 }

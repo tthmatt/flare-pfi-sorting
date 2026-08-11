@@ -489,3 +489,5 @@ th {
   display: flex;
   justify-content: space-between;
 }
+.proposal-item { display: grid; gap: .3rem; padding: .75rem 0; border-top: 1px solid var(--border, #d7dde5); }
+.proposal-item span { color: #52606d; font-size: .9rem; }
