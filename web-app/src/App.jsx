@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import JSZip from 'jszip';
 import flareLogo from './assets/flare-dynamics-logo.svg';
-import { inferAltitudeStarts } from './grouping.js';
-
-const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'tif', 'tiff', 'png', 'dng']);
-const BROWSER_PREVIEW_EXTENSIONS = new Set(['jpg', 'jpeg', 'png']);
-const METADATA_READ_LIMIT = 2 * 1024 * 1024;
+import { analyzeFiles } from './grouping.js';
+import { canPreviewInBrowser, getDisplayPath, getFileName, isImageFile, safePathPart } from './files.js';
+import { downloadBlob, makeZip } from './reports.js';
+import { analysisProgress, analysisSummary, logStatus } from './telemetry.js';
 
 const APP_VERSION = '0.3.1';
 const CHANGELOG = [
@@ -47,57 +45,6 @@ const CHANGELOG = [
   },
 ];
 
-const PITCH_PATTERNS = [
-  /(?:drone-dji:)?GimbalPitchDegree\s*=\s*["']([-+]?\d+(?:\.\d+)?)["']/i,
-  /(?:drone-dji:)?CameraPitchDegree\s*=\s*["']([-+]?\d+(?:\.\d+)?)["']/i,
-  /(?:Camera|Gimbal)Pitch\s*=\s*["']([-+]?\d+(?:\.\d+)?)["']/i,
-  /<(?:[^:>]+:)?(?:GimbalPitchDegree|CameraPitchDegree|CameraPitch)>\s*([-+]?\d+(?:\.\d+)?)\s*<\//i,
-];
-
-const RELATIVE_ALTITUDE_PATTERNS = [
-  /(?:drone-dji:)?RelativeAltitude\s*=\s*["\']([-+]?\d+(?:\.\d+)?)["\']/i,
-  /<(?:[^:>]+:)?RelativeAltitude>\s*([-+]?\d+(?:\.\d+)?)\s*<\//i,
-];
-
-const ALTITUDE_FALLBACK_PATTERNS = [
-  /(?:drone-dji:)?AbsoluteAltitude\s*=\s*["\']([-+]?\d+(?:\.\d+)?)["\']/i,
-  /<(?:[^:>]+:)?AbsoluteAltitude>\s*([-+]?\d+(?:\.\d+)?)\s*<\//i,
-  /(?:exif:)?GPSAltitude\s*=\s*["\']([-+]?\d+(?:\.\d+)?)["\']/i,
-  /<(?:[^:>]+:)?GPSAltitude>\s*([-+]?\d+(?:\.\d+)?)\s*<\//i,
-];
-
-const DATE_PATTERNS = [
-  /(?:exif:)?DateTimeOriginal\s*=\s*["']([^"']+)["']/i,
-  /<(?:[^:>]+:)?DateTimeOriginal>\s*([^<]+)\s*<\//i,
-  /(?:xmp:)?CreateDate\s*=\s*["']([^"']+)["']/i,
-];
-
-function getFileExtension(file) {
-  return file.name.split('.').pop()?.toLowerCase() || '';
-}
-
-function isImageFile(file) {
-  const extension = getFileExtension(file);
-  return extension ? IMAGE_EXTENSIONS.has(extension) : false;
-}
-
-function canPreviewInBrowser(file) {
-  return BROWSER_PREVIEW_EXTENSIONS.has(getFileExtension(file));
-}
-
-function getDisplayPath(file) {
-  return file.webkitRelativePath || file.name;
-}
-
-function getFileName(file) {
-  const path = getDisplayPath(file);
-  return path.split('/').filter(Boolean).pop() || file.name;
-}
-
-function safePathPart(value) {
-  return value.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, '_').replace(/_+/g, '_').replace(/^[-_.]+|[-_.]+$/g, '') || 'inspection_run';
-}
-
 function formatBytes(bytes) {
   if (!bytes) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB'];
@@ -116,201 +63,6 @@ function formatPitch(pitch) {
 
 function formatAltitude(altitude) {
   return altitude === null || altitude === undefined ? 'Unknown' : `${altitude.toFixed(1)} m`;
-}
-
-function parseCaptureDate(text) {
-  for (const pattern of DATE_PATTERNS) {
-    const match = text.match(pattern);
-    if (!match) continue;
-    const raw = match[1].trim();
-    const normalized = raw.replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3').replace(' ', 'T');
-    const parsed = new Date(normalized);
-    if (!Number.isNaN(parsed.getTime())) return parsed;
-  }
-  return null;
-}
-
-async function readMetadataText(file) {
-  const blob = file.slice(0, Math.min(file.size, METADATA_READ_LIMIT));
-  const buffer = await blob.arrayBuffer();
-  return new TextDecoder('utf-8', { fatal: false }).decode(buffer);
-}
-
-function firstFloatMatch(text, patterns) {
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (!match) continue;
-    const parsed = Number.parseFloat(match[1]);
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return null;
-}
-
-async function readPitchAndDate(file) {
-  const text = await readMetadataText(file);
-  let pitch = null;
-  let altitude = null;
-  for (const pattern of PITCH_PATTERNS) {
-    const match = text.match(pattern);
-    if (!match) continue;
-    const parsed = Number.parseFloat(match[1]);
-    if (Number.isFinite(parsed)) {
-      pitch = parsed;
-      break;
-    }
-  }
-  altitude = firstFloatMatch(text, RELATIVE_ALTITUDE_PATTERNS);
-  if (altitude === null) altitude = firstFloatMatch(text, ALTITUDE_FALLBACK_PATTERNS);
-  return { pitch, altitude, captureDate: parseCaptureDate(text) };
-}
-
-function isMarkerPitch(pitch, markerPitch, tolerance) {
-  if (pitch === null || pitch === undefined) return false;
-  return Math.abs(Math.abs(pitch) - Math.abs(markerPitch)) <= tolerance;
-}
-
-function sortAnalyses(analyses, sortBy) {
-  return [...analyses].sort((a, b) => {
-    if (sortBy === 'capture') {
-      const aTime = a.captureDate?.getTime() ?? Number.POSITIVE_INFINITY;
-      const bTime = b.captureDate?.getTime() ?? Number.POSITIVE_INFINITY;
-      if (aTime !== bTime) return aTime - bTime;
-    }
-    if (sortBy === 'modified') {
-      if (a.file.lastModified !== b.file.lastModified) return a.file.lastModified - b.file.lastModified;
-    }
-    return getDisplayPath(a.file).localeCompare(getDisplayPath(b.file), undefined, { numeric: true, sensitivity: 'base' });
-  });
-}
-
-function buildGroups(analyses, settings) {
-  const ordered = sortAnalyses(analyses, settings.inferAltitudeTurns ? 'capture' : settings.sortBy);
-  const prefix = safePathPart(settings.folderPrefix);
-  const groups = [];
-  let currentGroup = null;
-  let pendingNewGroup = false;
-  let pendingStartReason = null;
-  let skippedMarkerCount = 0;
-  const pitchStarts = ordered.map((item) => isMarkerPitch(item.pitch, settings.markerPitch, settings.tolerance));
-  for (let index = 1; index < pitchStarts.length; index += 1) {
-    if (pitchStarts[index] && pitchStarts[index - 1]) pitchStarts[index] = false;
-  }
-  const { reversalStarts: altitudeStarts, horizontalStarts } = settings.inferAltitudeTurns
-    ? inferAltitudeStarts(ordered, pitchStarts, settings)
-    : { reversalStarts: new Set(), horizontalStarts: new Set() };
-
-  for (let index = 0; index < ordered.length; index += 1) {
-    const item = ordered[index];
-    const isMarker = isMarkerPitch(item.pitch, settings.markerPitch, settings.tolerance);
-    const pitchStartsFolder = pitchStarts[index];
-    const horizontalStartsFolder = horizontalStarts.has(index);
-    const altitudeStartsFolder = altitudeStarts.has(index) || horizontalStartsFolder;
-    let startReason = pitchStartsFolder ? 'pitched-down' : horizontalStartsFolder ? 'horizontal-traverse' : altitudeStartsFolder ? 'altitude-reversal' : null;
-    let startsNewFolder = startReason !== null;
-
-    if (settings.skipMarkers && isMarker) {
-      skippedMarkerCount += 1;
-      if (pitchStartsFolder) {
-        pendingNewGroup = true;
-        pendingStartReason = 'pitched-down';
-      }
-      continue;
-    }
-
-    if (pendingNewGroup || !currentGroup || startsNewFolder) {
-      if (pendingNewGroup) {
-        startReason = pendingStartReason;
-        startsNewFolder = true;
-      }
-      currentGroup = {
-        name: `${prefix}_${String(groups.length + 1).padStart(3, '0')}`,
-        files: [],
-        startReason: startReason ?? 'first-image',
-        size: 0,
-      };
-      groups.push(currentGroup);
-      pendingNewGroup = false;
-      pendingStartReason = null;
-    }
-    currentGroup.files.push({ ...item, startsNewFolder, startReason: startReason ?? (!currentGroup.files.length && groups.length === 1 ? 'first-image' : null) });
-    currentGroup.size += item.file.size;
-  }
-
-  return { groups, skippedMarkerCount };
-}
-
-async function analyzeFiles(files, settings, onProgress) {
-  const images = files.filter(isImageFile);
-  const analyses = [];
-  for (let index = 0; index < images.length; index += 1) {
-    const file = images[index];
-    try {
-      const metadata = await readPitchAndDate(file);
-      analyses.push({ file, ...metadata, error: null });
-    } catch (error) {
-      analyses.push({ file, pitch: null, altitude: null, captureDate: null, error: error instanceof Error ? error.message : String(error) });
-    }
-    onProgress?.(index + 1, images.length);
-  }
-  return buildGroups(analyses, settings);
-}
-
-async function makeZip(groups, keepFolderPaths, includeCsvReport) {
-  const zip = new JSZip();
-  const usedPaths = new Map();
-
-  for (const group of groups) {
-    for (const item of group.files) {
-      const relative = keepFolderPaths ? getDisplayPath(item.file) : getFileName(item.file);
-      const cleanRelative = relative.split('/').filter(Boolean).map(safePathPart).join('/');
-      const basePath = `${group.name}/${cleanRelative}`;
-      const count = usedPaths.get(basePath) || 0;
-      usedPaths.set(basePath, count + 1);
-
-      let zipPath = basePath;
-      if (count > 0) {
-        const dotIndex = basePath.lastIndexOf('.');
-        zipPath = dotIndex === -1 ? `${basePath}_${count + 1}` : `${basePath.slice(0, dotIndex)}_${count + 1}${basePath.slice(dotIndex)}`;
-      }
-      zip.file(zipPath, item.file);
-    }
-  }
-
-  if (includeCsvReport) {
-    zip.file('sort_report.csv', makeCsvReport(groups));
-  }
-  return zip.generateAsync({ type: 'blob' });
-}
-
-function makeCsvReport(groups) {
-  const rows = [['folder', 'file', 'pitch', 'altitude', 'capture_time', 'starts_new_folder', 'start_reason', 'size_bytes', 'error']];
-  for (const group of groups) {
-    for (const item of group.files) {
-      rows.push([
-        group.name,
-        getDisplayPath(item.file),
-        item.pitch ?? '',
-        item.altitude ?? '',
-        item.captureDate ? item.captureDate.toISOString() : '',
-        item.startsNewFolder ? 'yes' : 'no',
-        item.startReason ?? '',
-        item.file.size,
-        item.error ?? '',
-      ]);
-    }
-  }
-  return rows.map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\n');
-}
-
-function downloadBlob(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
 }
 
 export default function App() {
@@ -343,7 +95,7 @@ export default function App() {
   const unknownPitchCount = useMemo(() => groups.flatMap((group) => group.files).filter((item) => item.pitch === null).length, [groups]);
 
   useEffect(() => {
-    console.log('[PFI Sorter] Current status:', status);
+    logStatus(status);
   }, [status]);
 
   function updateSetting(key, value) {
@@ -369,13 +121,11 @@ export default function App() {
     setSkippedMarkerCount(0);
     try {
       const result = await analyzeFiles(imageFiles, settings, (done, total) => {
-        setStatus(`Analyzing ${done} of ${total} images...`);
+        setStatus(analysisProgress(done, total));
       });
-      const outputImageCount = result.groups.reduce((sum, group) => sum + group.files.length, 0);
-      const skippedText = result.skippedMarkerCount ? ` Skipped ${result.skippedMarkerCount} marker image${result.skippedMarkerCount === 1 ? '' : 's'}.` : '';
       setGroups(result.groups);
       setSkippedMarkerCount(result.skippedMarkerCount);
-      setStatus(`Ready: ${outputImageCount} output image${outputImageCount === 1 ? '' : 's'} grouped into ${result.groups.length} folder${result.groups.length === 1 ? '' : 's'}.${skippedText}`);
+      setStatus(analysisSummary(result.groups, result.skippedMarkerCount));
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
     } finally {
