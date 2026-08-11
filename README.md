@@ -2,7 +2,7 @@ https://flare-pfi-sorting.vercel.app/
 
 # Flare PFI Sorting
 
-**Current version:** 0.3.2
+**Current version:** 0.3.3
 
 A dependency-free Python command-line tool for sorting drone building-inspection images into inspection run folders. The sorter reads embedded EXIF/XMP-style metadata and starts a new folder whenever the camera or gimbal pitch is detected as straight down (approximately 90 degrees).
 
@@ -119,6 +119,12 @@ With the example above, the output would skip `DJI_0002.JPG` and `DJI_0004.JPG` 
 
 
 ## Changelog
+
+### 0.3.3 - 2026-08-11
+
+- Added normalized telemetry parsing and deterministic metadata warnings.
+- Added local-only telemetry coverage for GPS, pitch, time, altitude sources, and yaw.
+
 
 ### 0.3.2 - 2026-08-11
 

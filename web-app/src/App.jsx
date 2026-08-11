@@ -5,8 +5,16 @@ import { canPreviewInBrowser, getDisplayPath, getFileName, isImageFile, safePath
 import { downloadBlob, makeZip } from './reports.js';
 import { analysisProgress, analysisSummary, logStatus } from './telemetry.js';
 
-const APP_VERSION = '0.3.2';
+const APP_VERSION = '0.3.3';
 const CHANGELOG = [
+  {
+    version: '0.3.3',
+    date: '2026-08-11',
+    changes: [
+      'Added normalized pitch, time, altitude, GPS, and yaw telemetry with stable metadata warnings.',
+      'Added a local-only telemetry coverage summary without displaying raw coordinates.',
+    ],
+  },
   {
     version: '0.3.2',
     date: '2026-08-11',
@@ -78,6 +86,7 @@ export default function App() {
   const fileInputRef = useRef(null);
   const [files, setFiles] = useState([]);
   const [groups, setGroups] = useState([]);
+  const [analyses, setAnalyses] = useState([]);
   const [skippedMarkerCount, setSkippedMarkerCount] = useState(0);
   const [status, setStatus] = useState('Choose a folder or images to begin.');
   const [isWorking, setIsWorking] = useState(false);
@@ -114,6 +123,7 @@ export default function App() {
     const selected = Array.from(fileList || []);
     setFiles(selected);
     setGroups([]);
+    setAnalyses([]);
     setSkippedMarkerCount(0);
     const imageCount = selected.filter(isImageFile).length;
     setStatus(`${imageCount} supported image${imageCount === 1 ? '' : 's'} selected.`);
@@ -132,6 +142,7 @@ export default function App() {
         setStatus(analysisProgress(done, total));
       });
       setGroups(result.groups);
+      setAnalyses(result.analyses);
       setSkippedMarkerCount(result.skippedMarkerCount);
       setStatus(analysisSummary(result.groups, result.skippedMarkerCount));
     } catch (error) {
@@ -256,6 +267,8 @@ export default function App() {
             <div><strong>{settings.inferAltitudeTurns ? 'On' : 'Off'}</strong><span>Altitude fallback</span></div>
           </div>
 
+          {analyses.length > 0 && <TelemetryCoverage analyses={analyses} />}
+
           <section className="panel">
             <div className="panel-heading">
               <h2>Folders</h2>
@@ -270,6 +283,27 @@ export default function App() {
         </section>
       </div>
     </main>
+  );
+}
+
+
+function TelemetryCoverage({ analyses }) {
+  const total = analyses.length;
+  const available = (key) => analyses.filter((item) => item[key] !== null && item[key] !== undefined).length;
+  const sources = ['relative', 'absolute', 'gps'];
+  return (
+    <section className="panel telemetry-coverage">
+      <div className="panel-heading"><h2>Telemetry coverage</h2><span>{total} files</span></div>
+      <div className="coverage-grid">
+        <span>GPS coordinates available <strong>{analyses.filter((item) => item.latitude !== null && item.longitude !== null).length} / {total}</strong></span>
+        <span>Pitch available <strong>{available('pitch')} / {total}</strong></span>
+        <span>Capture time available <strong>{available('captureDate')} / {total}</strong></span>
+        {sources.map((source) => <span key={source}>{source[0].toUpperCase() + source.slice(1)} altitude <strong>{analyses.filter((item) => item.altitudeSource === source).length}</strong></span>)}
+        <span>Flight yaw available <strong>{available('flightYaw')} / {total}</strong></span>
+        <span>Gimbal yaw available <strong>{available('gimbalYaw')} / {total}</strong></span>
+        <span>Files with metadata warnings <strong>{analyses.filter((item) => item.warnings.length > 0).length}</strong></span>
+      </div>
+    </section>
   );
 }
 

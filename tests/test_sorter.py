@@ -391,3 +391,45 @@ def test_metadata_read_window_is_two_megabytes(tmp_path):
     image.write_bytes(padding + b'drone-dji:GimbalPitchDegree="-89.5"')
 
     assert read_pitch_degrees(image) == -89.5
+
+
+def test_shared_metadata_golden_vectors(tmp_path):
+    import json
+    from pfi_sorter.sorter import read_image_metadata
+
+    golden = json.loads((Path(__file__).with_name("metadata_golden_vectors.json")).read_text())
+    for index, vector in enumerate(golden["vectors"]):
+        image = tmp_path / f"{index}.jpg"
+        image.write_text(vector["text"])
+        metadata = read_image_metadata(image)
+        capture_time = metadata.capture_datetime.isoformat().replace("+00:00", "Z") if metadata.capture_datetime else None
+        expected = vector["expected"]
+        assert capture_time == expected["captureTime"], vector["name"]
+        assert metadata.pitch == expected["pitch"], vector["name"]
+        assert metadata.altitude == expected["altitude"], vector["name"]
+        assert metadata.altitude_source == expected["altitudeSource"], vector["name"]
+        assert metadata.latitude == expected["latitude"], vector["name"]
+        assert metadata.longitude == expected["longitude"], vector["name"]
+        assert metadata.flight_yaw == expected["flightYaw"], vector["name"]
+        assert metadata.gimbal_yaw == expected["gimbalYaw"], vector["name"]
+        assert list(metadata.warnings) == expected["warnings"], vector["name"]
+
+
+def test_sort_images_reads_metadata_window_once_per_image(tmp_path, monkeypatch):
+    import pfi_sorter.sorter as sorter
+
+    input_dir = tmp_path / "input"
+    input_dir.mkdir()
+    for index in range(3):
+        write_image(input_dir / f"{index}.jpg", pitch=-10, date=f"2026:01:01 00:00:0{index + 1}")
+    original = sorter._read_metadata_window
+    calls = []
+
+    def counted(path, limit=sorter.METADATA_READ_LIMIT):
+        calls.append(path)
+        return original(path, limit)
+
+    monkeypatch.setattr(sorter, "_read_metadata_window", counted)
+    sorter.sort_images(sorter.SortOptions(input_dir=input_dir, output_dir=tmp_path / "out", dry_run=True))
+    assert sorted(calls) == [input_dir / f"{index}.jpg" for index in range(3)]
+    assert len(calls) == 3
