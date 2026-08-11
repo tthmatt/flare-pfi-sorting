@@ -1,3 +1,73 @@
+import { isImageFile, safePathPart } from './files.js';
+import { readImageMetadata } from './metadata.js';
+import { sortAnalyses } from './ordering.js';
+
+export function isMarkerPitch(pitch, markerPitch, tolerance) {
+  return pitch !== null && pitch !== undefined && Math.abs(Math.abs(pitch) - Math.abs(markerPitch)) <= tolerance;
+}
+
+export function buildGroups(analyses, settings) {
+  const ordered = sortAnalyses(analyses, settings.inferAltitudeTurns ? 'capture' : settings.sortBy);
+  const groups = [];
+  let currentGroup = null;
+  let pendingNewGroup = false;
+  let pendingStartReason = null;
+  let skippedMarkerCount = 0;
+  const pitchStarts = ordered.map((item) => isMarkerPitch(item.pitch, settings.markerPitch, settings.tolerance));
+  for (let index = 1; index < pitchStarts.length; index += 1) {
+    if (pitchStarts[index] && pitchStarts[index - 1]) pitchStarts[index] = false;
+  }
+  const { reversalStarts, horizontalStarts } = settings.inferAltitudeTurns
+    ? inferAltitudeStarts(ordered, pitchStarts, settings)
+    : { reversalStarts: new Set(), horizontalStarts: new Set() };
+
+  for (let index = 0; index < ordered.length; index += 1) {
+    const item = ordered[index];
+    const marker = isMarkerPitch(item.pitch, settings.markerPitch, settings.tolerance);
+    let startReason = pitchStarts[index] ? 'pitched-down' : horizontalStarts.has(index) ? 'horizontal-traverse' : reversalStarts.has(index) ? 'altitude-reversal' : null;
+    let startsNewFolder = startReason !== null;
+    if (settings.skipMarkers && marker) {
+      skippedMarkerCount += 1;
+      if (pitchStarts[index]) {
+        pendingNewGroup = true;
+        pendingStartReason = 'pitched-down';
+      }
+      continue;
+    }
+    if (pendingNewGroup || !currentGroup || startsNewFolder) {
+      if (pendingNewGroup) {
+        startReason = pendingStartReason;
+        startsNewFolder = true;
+      }
+      currentGroup = {
+        name: `${safePathPart(settings.folderPrefix)}_${String(groups.length + 1).padStart(3, '0')}`,
+        files: [], startReason: startReason ?? 'first-image', size: 0,
+      };
+      groups.push(currentGroup);
+      pendingNewGroup = false;
+      pendingStartReason = null;
+    }
+    currentGroup.files.push({ ...item, startsNewFolder, startReason: startReason ?? (!currentGroup.files.length && groups.length === 1 ? 'first-image' : null) });
+    currentGroup.size += item.file.size;
+  }
+  return { groups, skippedMarkerCount };
+}
+
+export async function analyzeFiles(files, settings, onProgress) {
+  const images = files.filter(isImageFile);
+  const analyses = [];
+  for (let index = 0; index < images.length; index += 1) {
+    const file = images[index];
+    try {
+      analyses.push({ file, ...await readImageMetadata(file), error: null });
+    } catch (error) {
+      analyses.push({ file, pitch: null, altitude: null, captureDate: null, error: error instanceof Error ? error.message : String(error) });
+    }
+    onProgress?.(index + 1, images.length);
+  }
+  return buildGroups(analyses, settings);
+}
+
 export function altitudeDirection(previous, current, tolerance) {
   if (previous === null || previous === undefined || current === null || current === undefined) return 0;
   const delta = current - previous;

@@ -33,3 +33,20 @@ test('a pitched-down marker remains primary near a traverse', () => {
   assert.deepEqual([...result.horizontalStarts], []);
   assert.deepEqual([...result.reversalStarts], []);
 });
+
+import { readFileSync } from 'node:fs';
+import { buildGroups } from './grouping.js';
+
+const golden = JSON.parse(readFileSync(new URL('../../tests/grouping_golden_vectors.json', import.meta.url), 'utf8'));
+for (const vector of golden.vectors) {
+  test(`shared golden: ${vector.name}`, () => {
+    const analyses = vector.images.map(([name, pitch, altitude], index) => ({
+      file: { name, size: 1, lastModified: index }, pitch, altitude,
+      captureDate: new Date(Date.UTC(2026, 0, 1, 0, 0, index)), error: null,
+    }));
+    const result = buildGroups(analyses, { ...golden.settings, inferAltitudeTurns: vector.inferAltitudeTurns, skipMarkers: vector.skipMarkers });
+    assert.deepEqual(result.groups.map((group) => group.files.map((item) => item.file.name)), vector.groups);
+    assert.deepEqual(result.groups.map((group) => group.startReason), vector.startReasons);
+    assert.equal(result.skippedMarkerCount, vector.skippedMarkerCount);
+  });
+}

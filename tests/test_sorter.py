@@ -345,3 +345,49 @@ def test_skipped_leading_marker_preserves_pitched_down_reason_on_first_included_
     assert result.folder_count == 1
     assert result.images[0].source.name == "002.jpg"
     assert result.images[0].start_reason == "pitched-down"
+
+
+def test_shared_grouping_golden_vectors(tmp_path):
+    import json
+
+    vectors_path = Path(__file__).with_name("grouping_golden_vectors.json")
+    golden = json.loads(vectors_path.read_text(encoding="utf-8"))
+    for vector_index, vector in enumerate(golden["vectors"]):
+        case = tmp_path / str(vector_index)
+        input_dir = case / "input"
+        output_dir = case / "output"
+        input_dir.mkdir(parents=True)
+        for index, (name, pitch, altitude) in enumerate(vector["images"], start=1):
+            write_image(input_dir / name, pitch=pitch, altitude=altitude, date=f"2026:01:01 10:00:{index:02d}")
+        result = sort_images(SortOptions(
+            input_dir=input_dir,
+            output_dir=output_dir,
+            infer_altitude_turns=vector["inferAltitudeTurns"],
+            skip_markers=vector["skipMarkers"],
+        ))
+        actual_groups: dict[str, list[str]] = {}
+        for image in result.images:
+            actual_groups.setdefault(image.destination.parent.name, []).append(image.source.name)
+        assert list(actual_groups.values()) == vector["groups"], vector["name"]
+        assert [images[0].start_reason for images in _group_result_images(result)] == vector["startReasons"], vector["name"]
+        assert len(result.skipped) == vector["skippedMarkerCount"], vector["name"]
+
+
+def _group_result_images(result):
+    groups = []
+    current_name = None
+    for image in result.images:
+        name = image.destination.parent.name
+        if name != current_name:
+            groups.append([])
+            current_name = name
+        groups[-1].append(image)
+    return groups
+
+
+def test_metadata_read_window_is_two_megabytes(tmp_path):
+    image = tmp_path / "late-metadata.jpg"
+    padding = b"x" * (1024 * 1024)
+    image.write_bytes(padding + b'drone-dji:GimbalPitchDegree="-89.5"')
+
+    assert read_pitch_degrees(image) == -89.5

@@ -1,6 +1,6 @@
 # Drone Image Sorter Web App
 
-**Current version:** 0.2.0
+**Current version:** 0.3.2
 
 Browser-based version of the PFI drone inspection image sorter for deployment on Vercel or any static hosting provider.
 
@@ -44,6 +44,27 @@ Import this GitHub repository into Vercel and use these settings:
 
 
 ## Changelog
+
+### 0.3.2 - 2026-08-11
+
+- Refactor image metadata, ordering, grouping, telemetry, file helpers, and report generation out of `App.jsx`.
+- Read metadata from a consistent 2 MiB window in both the browser and Python sorter.
+- Share JSON golden grouping vectors between the JavaScript and Python test suites.
+- Preserve v0.3.1 grouping behavior, including pitched-down marker priority and consecutive duplicate-marker suppression.
+
+### 0.3.1 - 2026-08-03
+
+- Start a new folder after the first photo of a confirmed horizontal traverse between opposite vertical facade passes.
+- Require two near-level, near-0° pitch photos plus sustained vertical movement on both sides.
+- Keep pitched-down markers primary and avoid duplicate inferred folders around them.
+- Record `horizontal-traverse` as a distinct folder start reason in previews and CSV reports.
+
+### 0.3.0 - 2026-07-10
+
+- Add optional altitude-reversal fallback splitting for missed pitched-down marker photos.
+- Require sustained altitude turns and suppress inferred splits around real marker photos.
+- Preserve folder start reasons in browser previews and CSV reports.
+- Treat both `+90°` and `-90°` as pitched-down markers.
 
 ### 0.2.0 - 2026-07-10
 
