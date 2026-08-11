@@ -3,27 +3,91 @@
     {
       "name": "DJI attributes and altitude priority",
       "text": "<x:xmpmeta drone-dji:GimbalPitchDegree=\"-89.5\" drone-dji:RelativeAltitude=\"12.5\" drone-dji:AbsoluteAltitude=\"112.5\" exif:GPSAltitude=\"110\" exif:GPSLatitude=\"51.501N\" exif:GPSLongitude=\"0.142W\" drone-dji:FlightYawDegree=\"45.2\" drone-dji:GimbalYawDegree=\"-3\" exif:DateTimeOriginal=\"2026:08:11 12:30:45\" />",
-      "expected": {"pitch": -89.5, "captureTime": "2026-08-11T12:30:45", "altitude": 12.5, "altitudeSource": "relative", "latitude": 51.501, "longitude": -0.142, "flightYaw": 45.2, "gimbalYaw": -3, "warnings": []}
+      "expected": {
+        "pitch": -89.5,
+        "captureTime": "2026-08-11T12:30:45Z",
+        "altitude": 12.5,
+        "altitudeSource": "relative",
+        "latitude": 51.501,
+        "longitude": -0.142,
+        "flightYaw": 45.2,
+        "gimbalYaw": -3,
+        "warnings": [],
+        "captureEpochMs": 1786451445000
+      }
     },
     {
       "name": "XML elements and absolute fallback",
       "text": "<CameraPitchDegree>-25</CameraPitchDegree><AbsoluteAltitude>88.2</AbsoluteAltitude><GPSLatitude>-33.86</GPSLatitude><GPSLongitude>151.21</GPSLongitude><FlightYawDegree>180</FlightYawDegree><GimbalYawDegree>2.5</GimbalYawDegree><CreateDate>2026-08-11T12:30:45Z</CreateDate>",
-      "expected": {"pitch": -25, "captureTime": "2026-08-11T12:30:45Z", "altitude": 88.2, "altitudeSource": "absolute", "latitude": -33.86, "longitude": 151.21, "flightYaw": 180, "gimbalYaw": 2.5, "warnings": []}
+      "expected": {
+        "pitch": -25,
+        "captureTime": "2026-08-11T12:30:45Z",
+        "altitude": 88.2,
+        "altitudeSource": "absolute",
+        "latitude": -33.86,
+        "longitude": 151.21,
+        "flightYaw": 180,
+        "gimbalYaw": 2.5,
+        "warnings": [],
+        "captureEpochMs": 1786451445000
+      }
     },
     {
       "name": "GPS altitude and hemisphere coordinates",
       "text": "<GimbalPitchDegree>-10</GimbalPitchDegree><GPSAltitude>55</GPSAltitude><GPSLatitude>33.9 S</GPSLatitude><GPSLongitude>151.2 E</GPSLongitude><CreateDate>2026-08-11T12:30:45+10:00</CreateDate>",
-      "expected": {"pitch": -10, "captureTime": "2026-08-11T12:30:45+10:00", "altitude": 55, "altitudeSource": "gps", "latitude": -33.9, "longitude": 151.2, "flightYaw": null, "gimbalYaw": null, "warnings": []}
+      "expected": {
+        "pitch": -10,
+        "captureTime": "2026-08-11T12:30:45+10:00",
+        "altitude": 55,
+        "altitudeSource": "gps",
+        "latitude": -33.9,
+        "longitude": 151.2,
+        "flightYaw": null,
+        "gimbalYaw": null,
+        "warnings": [],
+        "captureEpochMs": 1786415445000
+      }
     },
     {
       "name": "invalid and out of range coordinates",
       "text": "<GimbalPitchDegree>-5</GimbalPitchDegree><RelativeAltitude>1</RelativeAltitude><GPSLatitude>91</GPSLatitude><GPSLongitude>not-a-coordinate</GPSLongitude><CreateDate>2026-08-11T01:02:03</CreateDate>",
-      "expected": {"pitch": -5, "captureTime": "2026-08-11T01:02:03", "altitude": 1, "altitudeSource": "relative", "latitude": null, "longitude": null, "flightYaw": null, "gimbalYaw": null, "warnings": ["missing-gps", "invalid-latitude", "invalid-longitude"]}
+      "expected": {
+        "pitch": -5,
+        "captureTime": "2026-08-11T01:02:03Z",
+        "altitude": 1,
+        "altitudeSource": "relative",
+        "latitude": null,
+        "longitude": null,
+        "flightYaw": null,
+        "gimbalYaw": null,
+        "warnings": [
+          "missing-gps",
+          "invalid-latitude",
+          "invalid-longitude"
+        ],
+        "captureEpochMs": 1786410123000
+      }
     },
     {
       "name": "missing fields",
       "text": "<x:xmpmeta></x:xmpmeta>",
-      "expected": {"pitch": null, "captureTime": null, "altitude": null, "altitudeSource": null, "latitude": null, "longitude": null, "flightYaw": null, "gimbalYaw": null, "warnings": ["missing-pitch", "missing-capture-time", "missing-altitude", "missing-gps"]}
+      "expected": {
+        "pitch": null,
+        "captureTime": null,
+        "altitude": null,
+        "altitudeSource": null,
+        "latitude": null,
+        "longitude": null,
+        "flightYaw": null,
+        "gimbalYaw": null,
+        "warnings": [
+          "missing-pitch",
+          "missing-capture-time",
+          "missing-altitude",
+          "missing-gps"
+        ],
+        "captureEpochMs": null
+      }
     }
   ]
 }

@@ -1,0 +1,1001 @@
+{
+  "settings": {
+    "altitudeTolerance": 0.75,
+    "altitudeMinSteps": 2,
+    "altitudeMinSpan": 5,
+    "altitudeMarkerSuppression": 2,
+    "markerPitch": -90,
+    "tolerance": 2,
+    "gpsWindowSize": 3,
+    "gpsMinDisplacementMeters": 4,
+    "gpsMaxClusterRadiusMeters": 3,
+    "gpsMinSignalRatio": 2,
+    "gpsMaxGapSeconds": 30
+  },
+  "vectors": [
+    {
+      "name": "clean up horizontal displacement down",
+      "records": [
+        {
+          "fileName": "DJI_0001.JPG",
+          "pitch": -25,
+          "captureTime": 1786451400000,
+          "altitude": 10,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.799999
+        },
+        {
+          "fileName": "DJI_0002.JPG",
+          "pitch": -25,
+          "captureTime": 1786451405000,
+          "altitude": 20,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.8
+        },
+        {
+          "fileName": "DJI_0003.JPG",
+          "pitch": -25,
+          "captureTime": 1786451410000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.800001
+        },
+        {
+          "fileName": "DJI_0004.JPG",
+          "pitch": -25,
+          "captureTime": 1786451415000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.799999
+        },
+        {
+          "fileName": "DJI_0005.JPG",
+          "pitch": -25,
+          "captureTime": 1786451420000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.8
+        },
+        {
+          "fileName": "DJI_0006.JPG",
+          "pitch": -25,
+          "captureTime": 1786451425000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.800061
+        },
+        {
+          "fileName": "DJI_0007.JPG",
+          "pitch": -25,
+          "captureTime": 1786451430000,
+          "altitude": 20,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.800059
+        },
+        {
+          "fileName": "DJI_0008.JPG",
+          "pitch": -25,
+          "captureTime": 1786451435000,
+          "altitude": 10,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.80006
+        }
+      ],
+      "expected": {
+        "proposalCount": 1,
+        "boundaryIndex": 5,
+        "detectedAtIndex": 7,
+        "direction": "up-down",
+        "gpsDisplacementM": 6.67,
+        "distanceToleranceM": 0.15
+      }
+    },
+    {
+      "name": "clean down horizontal displacement up",
+      "records": [
+        {
+          "fileName": "DJI_0001.JPG",
+          "pitch": -25,
+          "captureTime": 1786451400000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.799999
+        },
+        {
+          "fileName": "DJI_0002.JPG",
+          "pitch": -25,
+          "captureTime": 1786451405000,
+          "altitude": 20,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.8
+        },
+        {
+          "fileName": "DJI_0003.JPG",
+          "pitch": -25,
+          "captureTime": 1786451410000,
+          "altitude": 10,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.800001
+        },
+        {
+          "fileName": "DJI_0004.JPG",
+          "pitch": -25,
+          "captureTime": 1786451415000,
+          "altitude": 10,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.799999
+        },
+        {
+          "fileName": "DJI_0005.JPG",
+          "pitch": -25,
+          "captureTime": 1786451420000,
+          "altitude": 10,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.8
+        },
+        {
+          "fileName": "DJI_0006.JPG",
+          "pitch": -25,
+          "captureTime": 1786451425000,
+          "altitude": 10,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.800061
+        },
+        {
+          "fileName": "DJI_0007.JPG",
+          "pitch": -25,
+          "captureTime": 1786451430000,
+          "altitude": 20,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.800059
+        },
+        {
+          "fileName": "DJI_0008.JPG",
+          "pitch": -25,
+          "captureTime": 1786451435000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.80006
+        }
+      ],
+      "expected": {
+        "proposalCount": 1,
+        "boundaryIndex": 5,
+        "detectedAtIndex": 7,
+        "direction": "down-up",
+        "gpsDisplacementM": 6.67,
+        "distanceToleranceM": 0.15
+      }
+    },
+    {
+      "name": "opposite direction without meaningful displacement",
+      "records": [
+        {
+          "fileName": "DJI_0001.JPG",
+          "pitch": -25,
+          "captureTime": 1786451400000,
+          "altitude": 10,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.799999
+        },
+        {
+          "fileName": "DJI_0002.JPG",
+          "pitch": -25,
+          "captureTime": 1786451405000,
+          "altitude": 20,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.8
+        },
+        {
+          "fileName": "DJI_0003.JPG",
+          "pitch": -25,
+          "captureTime": 1786451410000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.800001
+        },
+        {
+          "fileName": "DJI_0004.JPG",
+          "pitch": -25,
+          "captureTime": 1786451415000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.799999
+        },
+        {
+          "fileName": "DJI_0005.JPG",
+          "pitch": -25,
+          "captureTime": 1786451420000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.8
+        },
+        {
+          "fileName": "DJI_0006.JPG",
+          "pitch": -25,
+          "captureTime": 1786451425000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.800011
+        },
+        {
+          "fileName": "DJI_0007.JPG",
+          "pitch": -25,
+          "captureTime": 1786451430000,
+          "altitude": 20,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.800009
+        },
+        {
+          "fileName": "DJI_0008.JPG",
+          "pitch": -25,
+          "captureTime": 1786451435000,
+          "altitude": 10,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.80001
+        }
+      ],
+      "expected": {
+        "proposalCount": 0,
+        "reason": "insufficient-displacement"
+      }
+    },
+    {
+      "name": "single GPS outlier",
+      "records": [
+        {
+          "fileName": "DJI_0001.JPG",
+          "pitch": -25,
+          "captureTime": 1786451400000,
+          "altitude": 10,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.799999
+        },
+        {
+          "fileName": "DJI_0002.JPG",
+          "pitch": -25,
+          "captureTime": 1786451405000,
+          "altitude": 20,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.8001
+        },
+        {
+          "fileName": "DJI_0003.JPG",
+          "pitch": -25,
+          "captureTime": 1786451410000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.800001
+        },
+        {
+          "fileName": "DJI_0004.JPG",
+          "pitch": -25,
+          "captureTime": 1786451415000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.799999
+        },
+        {
+          "fileName": "DJI_0005.JPG",
+          "pitch": -25,
+          "captureTime": 1786451420000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.8
+        },
+        {
+          "fileName": "DJI_0006.JPG",
+          "pitch": -25,
+          "captureTime": 1786451425000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.800061
+        },
+        {
+          "fileName": "DJI_0007.JPG",
+          "pitch": -25,
+          "captureTime": 1786451430000,
+          "altitude": 20,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.800059
+        },
+        {
+          "fileName": "DJI_0008.JPG",
+          "pitch": -25,
+          "captureTime": 1786451435000,
+          "altitude": 10,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.80006
+        }
+      ],
+      "expected": {
+        "proposalCount": 0,
+        "reason": "noisy-gps-cluster"
+      }
+    },
+    {
+      "name": "displacement then same vertical direction",
+      "records": [
+        {
+          "fileName": "DJI_0001.JPG",
+          "pitch": -25,
+          "captureTime": 1786451400000,
+          "altitude": 10,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.799999
+        },
+        {
+          "fileName": "DJI_0002.JPG",
+          "pitch": -25,
+          "captureTime": 1786451405000,
+          "altitude": 20,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.8
+        },
+        {
+          "fileName": "DJI_0003.JPG",
+          "pitch": -25,
+          "captureTime": 1786451410000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.800001
+        },
+        {
+          "fileName": "DJI_0004.JPG",
+          "pitch": -25,
+          "captureTime": 1786451415000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.799999
+        },
+        {
+          "fileName": "DJI_0005.JPG",
+          "pitch": -25,
+          "captureTime": 1786451420000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.8
+        },
+        {
+          "fileName": "DJI_0006.JPG",
+          "pitch": -25,
+          "captureTime": 1786451425000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.800061
+        },
+        {
+          "fileName": "DJI_0007.JPG",
+          "pitch": -25,
+          "captureTime": 1786451430000,
+          "altitude": 40,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.800059
+        },
+        {
+          "fileName": "DJI_0008.JPG",
+          "pitch": -25,
+          "captureTime": 1786451435000,
+          "altitude": 50,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.80006
+        }
+      ],
+      "expected": {
+        "proposalCount": 0,
+        "reason": "same-direction"
+      }
+    },
+    {
+      "name": "nearby pitched-down marker",
+      "records": [
+        {
+          "fileName": "DJI_0001.JPG",
+          "pitch": -25,
+          "captureTime": 1786451400000,
+          "altitude": 10,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.799999
+        },
+        {
+          "fileName": "DJI_0002.JPG",
+          "pitch": -25,
+          "captureTime": 1786451405000,
+          "altitude": 20,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.8
+        },
+        {
+          "fileName": "DJI_0003.JPG",
+          "pitch": -25,
+          "captureTime": 1786451410000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.800001
+        },
+        {
+          "fileName": "DJI_0004.JPG",
+          "pitch": -25,
+          "captureTime": 1786451415000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.799999
+        },
+        {
+          "fileName": "DJI_0005.JPG",
+          "pitch": -90,
+          "captureTime": 1786451420000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.8
+        },
+        {
+          "fileName": "DJI_0006.JPG",
+          "pitch": -25,
+          "captureTime": 1786451425000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.800061
+        },
+        {
+          "fileName": "DJI_0007.JPG",
+          "pitch": -25,
+          "captureTime": 1786451430000,
+          "altitude": 20,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.800059
+        },
+        {
+          "fileName": "DJI_0008.JPG",
+          "pitch": -25,
+          "captureTime": 1786451435000,
+          "altitude": 10,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.80006
+        }
+      ],
+      "expected": {
+        "proposalCount": 0,
+        "reason": "nearby-pitched-down-marker"
+      }
+    },
+    {
+      "name": "missing GPS",
+      "records": [
+        {
+          "fileName": "DJI_0001.JPG",
+          "pitch": -25,
+          "captureTime": 1786451400000,
+          "altitude": 10,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.799999
+        },
+        {
+          "fileName": "DJI_0002.JPG",
+          "pitch": -25,
+          "captureTime": 1786451405000,
+          "altitude": 20,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.8
+        },
+        {
+          "fileName": "DJI_0003.JPG",
+          "pitch": -25,
+          "captureTime": 1786451410000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.800001
+        },
+        {
+          "fileName": "DJI_0004.JPG",
+          "pitch": -25,
+          "captureTime": 1786451415000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.799999
+        },
+        {
+          "fileName": "DJI_0005.JPG",
+          "pitch": -25,
+          "captureTime": 1786451420000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.8
+        },
+        {
+          "fileName": "DJI_0006.JPG",
+          "pitch": -25,
+          "captureTime": 1786451425000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": null,
+          "longitude": null
+        },
+        {
+          "fileName": "DJI_0007.JPG",
+          "pitch": -25,
+          "captureTime": 1786451430000,
+          "altitude": 20,
+          "altitudeSource": "relative",
+          "latitude": null,
+          "longitude": null
+        },
+        {
+          "fileName": "DJI_0008.JPG",
+          "pitch": -25,
+          "captureTime": 1786451435000,
+          "altitude": 10,
+          "altitudeSource": "relative",
+          "latitude": null,
+          "longitude": null
+        }
+      ],
+      "expected": {
+        "proposalCount": 0,
+        "reason": "insufficient-gps"
+      }
+    },
+    {
+      "name": "missing capture time",
+      "records": [
+        {
+          "fileName": "DJI_0001.JPG",
+          "pitch": -25,
+          "captureTime": 1786451400000,
+          "altitude": 10,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.799999
+        },
+        {
+          "fileName": "DJI_0002.JPG",
+          "pitch": -25,
+          "captureTime": 1786451405000,
+          "altitude": 20,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.8
+        },
+        {
+          "fileName": "DJI_0003.JPG",
+          "pitch": -25,
+          "captureTime": 1786451410000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.800001
+        },
+        {
+          "fileName": "DJI_0004.JPG",
+          "pitch": -25,
+          "captureTime": null,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.799999
+        },
+        {
+          "fileName": "DJI_0005.JPG",
+          "pitch": -25,
+          "captureTime": 1786451420000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.8
+        },
+        {
+          "fileName": "DJI_0006.JPG",
+          "pitch": -25,
+          "captureTime": 1786451425000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.800061
+        },
+        {
+          "fileName": "DJI_0007.JPG",
+          "pitch": -25,
+          "captureTime": 1786451430000,
+          "altitude": 20,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.800059
+        },
+        {
+          "fileName": "DJI_0008.JPG",
+          "pitch": -25,
+          "captureTime": 1786451435000,
+          "altitude": 10,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.80006
+        }
+      ],
+      "expected": {
+        "proposalCount": 0,
+        "reason": "missing-time"
+      }
+    },
+    {
+      "name": "excessive timestamp gap",
+      "records": [
+        {
+          "fileName": "DJI_0001.JPG",
+          "pitch": -25,
+          "captureTime": 1786451400000,
+          "altitude": 10,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.799999
+        },
+        {
+          "fileName": "DJI_0002.JPG",
+          "pitch": -25,
+          "captureTime": 1786451405000,
+          "altitude": 20,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.8
+        },
+        {
+          "fileName": "DJI_0003.JPG",
+          "pitch": -25,
+          "captureTime": 1786451410000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.800001
+        },
+        {
+          "fileName": "DJI_0004.JPG",
+          "pitch": -25,
+          "captureTime": 1786451415000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.799999
+        },
+        {
+          "fileName": "DJI_0005.JPG",
+          "pitch": -25,
+          "captureTime": 1786451460000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.8
+        },
+        {
+          "fileName": "DJI_0006.JPG",
+          "pitch": -25,
+          "captureTime": 1786451465000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.800061
+        },
+        {
+          "fileName": "DJI_0007.JPG",
+          "pitch": -25,
+          "captureTime": 1786451470000,
+          "altitude": 20,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.800059
+        },
+        {
+          "fileName": "DJI_0008.JPG",
+          "pitch": -25,
+          "captureTime": 1786451475000,
+          "altitude": 10,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.80006
+        }
+      ],
+      "expected": {
+        "proposalCount": 0,
+        "reason": "excessive-time-gap"
+      }
+    },
+    {
+      "name": "noisy GPS clusters",
+      "records": [
+        {
+          "fileName": "DJI_0001.JPG",
+          "pitch": -25,
+          "captureTime": 1786451400000,
+          "altitude": 10,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.799959
+        },
+        {
+          "fileName": "DJI_0002.JPG",
+          "pitch": -25,
+          "captureTime": 1786451405000,
+          "altitude": 20,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.80004
+        },
+        {
+          "fileName": "DJI_0003.JPG",
+          "pitch": -25,
+          "captureTime": 1786451410000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.799961
+        },
+        {
+          "fileName": "DJI_0004.JPG",
+          "pitch": -25,
+          "captureTime": 1786451415000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.800039
+        },
+        {
+          "fileName": "DJI_0005.JPG",
+          "pitch": -25,
+          "captureTime": 1786451420000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.79996
+        },
+        {
+          "fileName": "DJI_0006.JPG",
+          "pitch": -25,
+          "captureTime": 1786451425000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.800101
+        },
+        {
+          "fileName": "DJI_0007.JPG",
+          "pitch": -25,
+          "captureTime": 1786451430000,
+          "altitude": 20,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.800019
+        },
+        {
+          "fileName": "DJI_0008.JPG",
+          "pitch": -25,
+          "captureTime": 1786451435000,
+          "altitude": 10,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.8001
+        }
+      ],
+      "expected": {
+        "proposalCount": 0,
+        "reason": "noisy-gps-cluster"
+      }
+    },
+    {
+      "name": "horizontal GPS movement with no near-zero pitch photographs",
+      "records": [
+        {
+          "fileName": "DJI_0001.JPG",
+          "pitch": -35,
+          "captureTime": 1786451400000,
+          "altitude": 10,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.799999
+        },
+        {
+          "fileName": "DJI_0002.JPG",
+          "pitch": -35,
+          "captureTime": 1786451405000,
+          "altitude": 20,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.8
+        },
+        {
+          "fileName": "DJI_0003.JPG",
+          "pitch": -35,
+          "captureTime": 1786451410000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.800001
+        },
+        {
+          "fileName": "DJI_0004.JPG",
+          "pitch": -35,
+          "captureTime": 1786451415000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.799999
+        },
+        {
+          "fileName": "DJI_0005.JPG",
+          "pitch": -35,
+          "captureTime": 1786451420000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.8
+        },
+        {
+          "fileName": "DJI_0006.JPG",
+          "pitch": -35,
+          "captureTime": 1786451425000,
+          "altitude": 30,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.800061
+        },
+        {
+          "fileName": "DJI_0007.JPG",
+          "pitch": -35,
+          "captureTime": 1786451430000,
+          "altitude": 20,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.800059
+        },
+        {
+          "fileName": "DJI_0008.JPG",
+          "pitch": -35,
+          "captureTime": 1786451435000,
+          "altitude": 10,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.80006
+        }
+      ],
+      "expected": {
+        "proposalCount": 1,
+        "boundaryIndex": 5,
+        "detectedAtIndex": 7,
+        "direction": "up-down",
+        "gpsDisplacementM": 6.67,
+        "distanceToleranceM": 0.15
+      }
+    },
+    {
+      "name": "GPS movement without sustained vertical passes",
+      "records": [
+        {
+          "fileName": "DJI_0001.JPG",
+          "pitch": -25,
+          "captureTime": 1786451400000,
+          "altitude": 10,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.799999
+        },
+        {
+          "fileName": "DJI_0002.JPG",
+          "pitch": -25,
+          "captureTime": 1786451405000,
+          "altitude": 11,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.8
+        },
+        {
+          "fileName": "DJI_0003.JPG",
+          "pitch": -25,
+          "captureTime": 1786451410000,
+          "altitude": 12,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.800001
+        },
+        {
+          "fileName": "DJI_0004.JPG",
+          "pitch": -25,
+          "captureTime": 1786451415000,
+          "altitude": 12,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.799999
+        },
+        {
+          "fileName": "DJI_0005.JPG",
+          "pitch": -25,
+          "captureTime": 1786451420000,
+          "altitude": 12,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.8
+        },
+        {
+          "fileName": "DJI_0006.JPG",
+          "pitch": -25,
+          "captureTime": 1786451425000,
+          "altitude": 12,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.800061
+        },
+        {
+          "fileName": "DJI_0007.JPG",
+          "pitch": -25,
+          "captureTime": 1786451430000,
+          "altitude": 11,
+          "altitudeSource": "relative",
+          "latitude": 1.3,
+          "longitude": 103.800059
+        },
+        {
+          "fileName": "DJI_0008.JPG",
+          "pitch": -25,
+          "captureTime": 1786451435000,
+          "altitude": 10,
+          "altitudeSource": "relative",
+          "latitude": 1.300001,
+          "longitude": 103.80006
+        }
+      ],
+      "expected": {
+        "proposalCount": 0,
+        "reason": "insufficient-altitude"
+      }
+    }
+  ]
+}

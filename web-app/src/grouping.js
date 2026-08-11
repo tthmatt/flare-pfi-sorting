@@ -1,6 +1,7 @@
 import { isImageFile, safePathPart } from './files.js';
 import { readImageMetadata } from './metadata.js';
 import { sortAnalyses } from './ordering.js';
+import { analyzeGpsTurns } from './turnDetection.js';
 
 export function isMarkerPitch(pitch, markerPitch, tolerance) {
   return pitch !== null && pitch !== undefined && Math.abs(Math.abs(pitch) - Math.abs(markerPitch)) <= tolerance;
@@ -65,7 +66,11 @@ export async function analyzeFiles(files, settings, onProgress) {
     }
     onProgress?.(index + 1, images.length);
   }
-  return { ...buildGroups(analyses, settings), analyses };
+  const orderedAnalyses = sortAnalyses(analyses, 'capture');
+  const turnAnalysis = settings.proposeGpsTurns
+    ? analyzeGpsTurns(orderedAnalyses, settings)
+    : { proposals: [], reasonCounts: {} };
+  return { ...buildGroups(analyses, settings), analyses: orderedAnalyses, turnCandidates: turnAnalysis.proposals, turnCandidateReasonCounts: turnAnalysis.reasonCounts };
 }
 
 export function altitudeDirection(previous, current, tolerance) {

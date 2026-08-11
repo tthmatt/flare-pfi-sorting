@@ -16,6 +16,8 @@ import re
 import shutil
 from typing import Literal
 
+from .turn_detection import analyze_gps_turns
+
 ImageAction = Literal["copy", "move"]
 FolderStartReason = Literal["first-image", "pitched-down", "altitude-reversal", "horizontal-traverse"]
 
@@ -113,6 +115,12 @@ class SortOptions:
     altitude_marker_suppression: int = 2
     horizontal_min_photos: int = 2
     horizontal_pitch_tolerance: float = 5.0
+    propose_gps_turns: bool = False
+    gps_window_size: int = 3
+    gps_min_displacement_meters: float = 4.0
+    gps_max_cluster_radius_meters: float = 3.0
+    gps_min_signal_ratio: float = 2.0
+    gps_max_gap_seconds: float = 30.0
 
 
 @dataclass
@@ -133,6 +141,8 @@ class SortResult:
 
     images: list[SortedImage] = field(default_factory=list)
     skipped: list[Path] = field(default_factory=list)
+    turn_candidates: list[dict] = field(default_factory=list)
+    turn_candidate_reason_counts: dict[str, int] = field(default_factory=dict)
 
     @property
     def folder_count(self) -> int:
@@ -197,6 +207,8 @@ def sort_images(options: SortOptions) -> SortResult:
         raise ValueError("horizontal_min_photos must be at least two")
     if options.horizontal_pitch_tolerance < 0:
         raise ValueError("horizontal_pitch_tolerance must be zero or greater")
+    if options.gps_window_size < 1 or min(options.gps_min_displacement_meters, options.gps_max_cluster_radius_meters, options.gps_min_signal_ratio, options.gps_max_gap_seconds) < 0:
+        raise ValueError("GPS proposal thresholds must be non-negative and gps_window_size must be at least one")
     if not options.input_dir.exists() or not options.input_dir.is_dir():
         raise FileNotFoundError(f"Input directory does not exist: {options.input_dir}")
 
@@ -208,6 +220,25 @@ def sort_images(options: SortOptions) -> SortResult:
         if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
     ]
     records.sort(key=lambda record: (_datetime_sort_value(record[1].capture_datetime), record[0].name.lower()))
+    if options.propose_gps_turns:
+        proposal_analysis = analyze_gps_turns([
+            {
+                "fileName": path.name, "pitch": metadata.pitch,
+                "capture_datetime": metadata.capture_datetime, "altitude": metadata.altitude,
+                "altitude_source": metadata.altitude_source, "latitude": metadata.latitude,
+                "longitude": metadata.longitude,
+            }
+            for path, metadata in records
+        ], {
+            "altitudeTolerance": options.altitude_tolerance, "altitudeMinSteps": options.altitude_min_steps,
+            "altitudeMinSpan": options.altitude_min_span, "altitudeMarkerSuppression": options.altitude_marker_suppression,
+            "tolerance": options.tolerance, "gpsWindowSize": options.gps_window_size,
+            "gpsMinDisplacementMeters": options.gps_min_displacement_meters,
+            "gpsMaxClusterRadiusMeters": options.gps_max_cluster_radius_meters,
+            "gpsMinSignalRatio": options.gps_min_signal_ratio, "gpsMaxGapSeconds": options.gps_max_gap_seconds,
+        })
+        result.turn_candidates = proposal_analysis["proposals"]
+        result.turn_candidate_reason_counts = proposal_analysis["reasonCounts"]
     images = [record[0] for record in records]
     pitches = [record[1].pitch for record in records]
     altitudes = [record[1].altitude for record in records]
@@ -649,12 +680,14 @@ def _parse_datetime(raw: str) -> datetime | None:
     ]
     for candidate in candidates:
         try:
-            return datetime.fromisoformat(candidate)
+            parsed = datetime.fromisoformat(candidate)
+            return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
         except ValueError:
             pass
         for fmt in formats:
             try:
-                return datetime.strptime(candidate, fmt)
+                parsed = datetime.strptime(candidate, fmt)
+                return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
             except ValueError:
                 continue
     return None

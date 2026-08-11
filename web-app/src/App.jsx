@@ -5,8 +5,12 @@ import { canPreviewInBrowser, getDisplayPath, getFileName, isImageFile, safePath
 import { downloadBlob, makeZip } from './reports.js';
 import { analysisProgress, analysisSummary, logStatus } from './telemetry.js';
 
-const APP_VERSION = '0.3.3';
+const APP_VERSION = '0.3.4';
 const CHANGELOG = [
+  {
+    version: '0.3.4', date: '2026-08-11',
+    changes: ['Added conservative GPS-backed horizontal-turn proposals for review and real-flight calibration.', 'GPS proposals are experimental, never change folders, and are not included in ZIP exports.'],
+  },
   {
     version: '0.3.3',
     date: '2026-08-11',
@@ -88,6 +92,8 @@ export default function App() {
   const [groups, setGroups] = useState([]);
   const [analyses, setAnalyses] = useState([]);
   const [skippedMarkerCount, setSkippedMarkerCount] = useState(0);
+  const [turnCandidates, setTurnCandidates] = useState([]);
+  const [turnReasonCounts, setTurnReasonCounts] = useState({});
   const [status, setStatus] = useState('Choose a folder or images to begin.');
   const [isWorking, setIsWorking] = useState(false);
   const [settings, setSettings] = useState({
@@ -105,6 +111,12 @@ export default function App() {
     keepFolderPaths: false,
     skipMarkers: false,
     removeCsvReport: true,
+    proposeGpsTurns: false,
+    gpsWindowSize: 3,
+    gpsMinDisplacementMeters: 4,
+    gpsMaxClusterRadiusMeters: 3,
+    gpsMinSignalRatio: 2,
+    gpsMaxGapSeconds: 30,
   });
 
   const imageFiles = useMemo(() => files.filter(isImageFile), [files]);
@@ -125,6 +137,8 @@ export default function App() {
     setGroups([]);
     setAnalyses([]);
     setSkippedMarkerCount(0);
+    setTurnCandidates([]);
+    setTurnReasonCounts({});
     const imageCount = selected.filter(isImageFile).length;
     setStatus(`${imageCount} supported image${imageCount === 1 ? '' : 's'} selected.`);
   }
@@ -144,6 +158,8 @@ export default function App() {
       setGroups(result.groups);
       setAnalyses(result.analyses);
       setSkippedMarkerCount(result.skippedMarkerCount);
+      setTurnCandidates(result.turnCandidates);
+      setTurnReasonCounts(result.turnCandidateReasonCounts);
       setStatus(analysisSummary(result.groups, result.skippedMarkerCount));
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
@@ -228,6 +244,10 @@ export default function App() {
             <input type="checkbox" checked={settings.inferAltitudeTurns} onChange={(event) => updateSetting('inferAltitudeTurns', event.target.checked)} />
             Infer missed altitude turns
           </label>
+          <label className="check-row">
+            <input type="checkbox" checked={settings.proposeGpsTurns} onChange={(event) => updateSetting('proposeGpsTurns', event.target.checked)} />
+            Show experimental GPS turn proposals — does not change folders
+          </label>
           <label>
             Altitude reversal tolerance (metres)
             <input type="number" min="0" step="0.05" value={settings.altitudeTolerance} onChange={(event) => updateSetting('altitudeTolerance', Math.max(0, Number.parseFloat(event.target.value) || 0))} />
@@ -268,6 +288,7 @@ export default function App() {
           </div>
 
           {analyses.length > 0 && <TelemetryCoverage analyses={analyses} />}
+          {analyses.length > 0 && settings.proposeGpsTurns && <TurnProposalPanel proposals={turnCandidates} reasons={turnReasonCounts} analyses={analyses} />}
 
           <section className="panel">
             <div className="panel-heading">
@@ -283,6 +304,27 @@ export default function App() {
         </section>
       </div>
     </main>
+  );
+}
+
+function TurnProposalPanel({ proposals, reasons, analyses }) {
+  const insufficient = ['insufficient-altitude', 'inconsistent-altitude-source', 'insufficient-gps', 'missing-time', 'non-increasing-time', 'excessive-time-gap'];
+  const coverageProblem = insufficient.some((reason) => reasons[reason]);
+  return (
+    <section className="panel proposal-panel">
+      <div className="panel-heading"><h2>Experimental GPS turn proposals</h2><span>Review only</span></div>
+      <p>These calibration candidates do not change folders and are not included in the ZIP. Raw coordinates are never displayed.</p>
+      {!proposals.length && <p className="empty-state">{coverageProblem ? 'Insufficient GPS, time, or eligible altitude coverage.' : 'No qualifying turn was found.'}</p>}
+      {proposals.map((proposal) => {
+        const evidence = proposal.evidence; const detected = analyses[proposal.detectedAtIndex];
+        return <article className="proposal-item" key={`${proposal.boundaryIndex}-${proposal.detectedAtIndex}`}>
+          <strong>{proposal.boundaryFile}: {evidence.priorDirection}→{evidence.nextDirection}</strong>
+          <span>GPS displacement {evidence.gpsDisplacementM.toFixed(2)} m • cluster radii {evidence.priorClusterRadiusM.toFixed(2)} / {evidence.nextClusterRadiusM.toFixed(2)} m</span>
+          <span>Altitude spans {evidence.priorAltitudeSpanM.toFixed(1)} / {evidence.nextAltitudeSpanM.toFixed(1)} m • evidence range {proposal.boundaryFile}→{detected?.file?.name ?? `image ${proposal.detectedAtIndex + 1}`} ({evidence.priorGpsSamples}+{evidence.nextGpsSamples} GPS samples)</span>
+          <span>Maximum time gap {evidence.maximumTimeGapSeconds.toFixed(1)} s • detected at {detected?.file?.name ?? `image ${proposal.detectedAtIndex + 1}`}</span>
+        </article>;
+      })}
+    </section>
   );
 }
 

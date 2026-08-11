@@ -34,7 +34,8 @@ export function parseCaptureDate(text) {
   for (const pattern of DATE_PATTERNS) {
     const match = text.match(pattern);
     if (!match) continue;
-    const normalized = match[1].trim().replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3').replace(' ', 'T');
+    let normalized = match[1].trim().replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3').replace(' ', 'T');
+    if (!/(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized)) normalized += 'Z';
     const parsed = new Date(normalized);
     if (!Number.isNaN(parsed.getTime())) return parsed;
   }

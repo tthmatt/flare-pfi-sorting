@@ -36,6 +36,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Infer missed folder markers from sustained altitude reversals. Disabled by default.",
     )
     parser.add_argument(
+        "--propose-gps-turns", action="store_true",
+        help="Show experimental review-only GPS turn proposals; never changes folders or output files.",
+    )
+    parser.add_argument(
         "--altitude-tolerance",
         type=float,
         default=0.75,
@@ -88,6 +92,7 @@ def main(argv: list[str] | None = None) -> int:
         skip_markers=args.skip_markers,
         infer_altitude_turns=args.infer_altitude_turns,
         altitude_tolerance=args.altitude_tolerance,
+        propose_gps_turns=args.propose_gps_turns,
     )
 
     try:
@@ -112,6 +117,14 @@ def main(argv: list[str] | None = None) -> int:
 
     action = "Would process" if args.dry_run else "Processed"
     print(f"{action} {len(result.images)} images into {result.folder_count} folders.")
+    if args.propose_gps_turns:
+        print("\nExperimental GPS turn proposals (review only; output is unchanged):")
+        if not result.turn_candidates:
+            details = ", ".join(f"{key}={value}" for key, value in sorted(result.turn_candidate_reason_counts.items()))
+            print(f"  No qualifying turn. {details or 'Insufficient altitude coverage.'}")
+        for proposal in result.turn_candidates:
+            evidence = proposal["evidence"]
+            print(f"  {proposal['boundaryFile']}: {evidence['priorDirection']}->{evidence['nextDirection']}, displacement={evidence['gpsDisplacementM']:.2f}m, detected_index={proposal['detectedAtIndex']}")
     return 0
 
 

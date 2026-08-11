@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from pfi_sorter.sorter import SortOptions, read_altitude, read_pitch_degrees, sort_images
+from pfi_sorter.turn_detection import analyze_gps_turns
 
 
 def write_image(
@@ -359,18 +360,22 @@ def test_shared_grouping_golden_vectors(tmp_path):
         input_dir.mkdir(parents=True)
         for index, (name, pitch, altitude) in enumerate(vector["images"], start=1):
             write_image(input_dir / name, pitch=pitch, altitude=altitude, date=f"2026:01:01 10:00:{index:02d}")
-        result = sort_images(SortOptions(
-            input_dir=input_dir,
-            output_dir=output_dir,
-            infer_altitude_turns=vector["inferAltitudeTurns"],
-            skip_markers=vector["skipMarkers"],
-        ))
-        actual_groups: dict[str, list[str]] = {}
-        for image in result.images:
-            actual_groups.setdefault(image.destination.parent.name, []).append(image.source.name)
-        assert list(actual_groups.values()) == vector["groups"], vector["name"]
-        assert [images[0].start_reason for images in _group_result_images(result)] == vector["startReasons"], vector["name"]
-        assert len(result.skipped) == vector["skippedMarkerCount"], vector["name"]
+        mode_results = []
+        for propose in (False, True):
+            result = sort_images(SortOptions(
+                input_dir=input_dir, output_dir=output_dir, dry_run=True,
+                infer_altitude_turns=vector["inferAltitudeTurns"],
+                skip_markers=vector["skipMarkers"], propose_gps_turns=propose,
+            ))
+            mode_results.append(result)
+            actual_groups: dict[str, list[str]] = {}
+            for image in result.images:
+                actual_groups.setdefault(image.destination.parent.name, []).append(image.source.name)
+            assert list(actual_groups.values()) == vector["groups"], vector["name"]
+            assert [images[0].start_reason for images in _group_result_images(result)] == vector["startReasons"], vector["name"]
+            assert len(result.skipped) == vector["skippedMarkerCount"], vector["name"]
+        placements = lambda result: [(image.destination, image.start_reason) for image in result.images]
+        assert placements(mode_results[0]) == placements(mode_results[1]), vector["name"]
 
 
 def _group_result_images(result):
@@ -405,6 +410,8 @@ def test_shared_metadata_golden_vectors(tmp_path):
         capture_time = metadata.capture_datetime.isoformat().replace("+00:00", "Z") if metadata.capture_datetime else None
         expected = vector["expected"]
         assert capture_time == expected["captureTime"], vector["name"]
+        actual_epoch_ms = int(metadata.capture_datetime.timestamp() * 1000) if metadata.capture_datetime else None
+        assert actual_epoch_ms == expected["captureEpochMs"], vector["name"]
         assert metadata.pitch == expected["pitch"], vector["name"]
         assert metadata.altitude == expected["altitude"], vector["name"]
         assert metadata.altitude_source == expected["altitudeSource"], vector["name"]
@@ -433,3 +440,42 @@ def test_sort_images_reads_metadata_window_once_per_image(tmp_path, monkeypatch)
     sorter.sort_images(sorter.SortOptions(input_dir=input_dir, output_dir=tmp_path / "out", dry_run=True))
     assert sorted(calls) == [input_dir / f"{index}.jpg" for index in range(3)]
     assert len(calls) == 3
+
+
+def test_mixed_timezone_capture_times_order_as_utc(tmp_path):
+    input_dir = tmp_path / "input"
+    input_dir.mkdir()
+    write_image(input_dir / "later.jpg", pitch=-10, date="2026:01:01 10:00:01")
+    write_image(input_dir / "earlier.jpg", pitch=-10, date="2026:01:01 10:30:00+01:00")
+    result = sort_images(SortOptions(input_dir=input_dir, output_dir=tmp_path / "out", dry_run=True))
+    assert [image.source.name for image in result.images] == ["earlier.jpg", "later.jpg"]
+
+
+def test_shared_gps_turn_golden_vectors():
+    import json
+    golden = json.loads(Path(__file__).with_name("gps_turn_golden_vectors.json").read_text())
+    for vector in golden["vectors"]:
+        analysis = analyze_gps_turns(vector["records"], golden["settings"])
+        expected = vector["expected"]
+        assert len(analysis["proposals"]) == expected["proposalCount"], vector["name"]
+        if "reason" in expected:
+            assert analysis["reasonCounts"].get(expected["reason"], 0) > 0, vector["name"]
+        if analysis["proposals"]:
+            proposal = analysis["proposals"][0]
+            assert proposal["boundaryIndex"] == expected["boundaryIndex"]
+            assert proposal["detectedAtIndex"] == expected["detectedAtIndex"]
+            assert abs(proposal["evidence"]["gpsDisplacementM"] - expected["gpsDisplacementM"]) <= expected["distanceToleranceM"]
+            assert "latitude" not in str(proposal).lower() and "longitude" not in str(proposal).lower()
+
+
+def test_gps_shadow_mode_preserves_destinations_and_start_reasons(tmp_path):
+    input_dir = tmp_path / "input"
+    input_dir.mkdir()
+    for index, altitude in enumerate([10, 20, 30, 30, 30, 30, 20, 10]):
+        path = input_dir / f"{index:03d}.jpg"
+        write_image(path, pitch=-25, altitude=altitude, date=f"2026:01:01 00:00:{index:02d}")
+        path.write_bytes(path.read_bytes().replace(b"></x:xmpmeta>", f' exif:GPSLatitude="1.3" exif:GPSLongitude="{103.8 + (0.00006 if index >= 5 else 0)}"></x:xmpmeta>'.encode()))
+    off = sort_images(SortOptions(input_dir=input_dir, output_dir=tmp_path / "off", dry_run=True))
+    on = sort_images(SortOptions(input_dir=input_dir, output_dir=tmp_path / "on", dry_run=True, propose_gps_turns=True))
+    normalized = lambda result: [(image.destination.parent.name, image.source.name, image.start_reason) for image in result.images]
+    assert normalized(off) == normalized(on)
