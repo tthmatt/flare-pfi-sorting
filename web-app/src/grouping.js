@@ -92,11 +92,13 @@ export async function analyzeFiles(files, settings, onProgress, options = {}) {
   await Promise.all(Array.from({ length: Math.min(4, images.length) }, () => worker()));
   if (lastReported !== images.length) reportProgress(true);
   const elapsedMs = Math.max(0, now() - startedAt);
-  const orderedAnalyses = sortAnalyses(analyses, 'capture');
+  // GPS proposal indices are always and exclusively capture-time flight-order
+  // indices. This second view reuses the metadata objects read above.
+  const captureOrderedAnalyses = sortAnalyses(analyses, 'capture');
   const turnAnalysis = settings.proposeGpsTurns
-    ? analyzeGpsTurns(orderedAnalyses, settings)
+    ? analyzeGpsTurns(captureOrderedAnalyses, settings)
     : { proposals: [], reasonCounts: {} };
-  return { ...buildGroups(analyses, settings), analyses, turnCandidates: turnAnalysis.proposals, turnCandidateReasonCounts: turnAnalysis.reasonCounts, elapsedMs };
+  return { ...buildGroups(analyses, settings), analyses, captureOrderedAnalyses, turnCandidates: turnAnalysis.proposals, turnCandidateReasonCounts: turnAnalysis.reasonCounts, elapsedMs };
 }
 
 export function altitudeDirection(previous, current, tolerance) {

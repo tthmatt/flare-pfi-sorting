@@ -74,7 +74,10 @@ def _runs(records: Sequence[Any], tolerance: float) -> list[dict[str, Any]]:
 
 
 def analyze_gps_turns(records: Sequence[Any], settings: Mapping[str, Any] | None = None) -> dict[str, Any]:
-    """Return proposals and aggregate rejection reasons for ordered records."""
+    """Return proposals for records in capture-time flight order.
+
+    Every returned index refers exclusively to that supplied order.
+    """
     options = dict(DEFAULT_GPS_OPTIONS)
     options.update(settings or {})
     tolerance = float(options.get("altitudeTolerance", 0.75))
@@ -97,8 +100,9 @@ def analyze_gps_turns(records: Sequence[Any], settings: Mapping[str, Any] | None
             reasons["inconsistent-altitude-source"] += 1
             continue
         boundary = nxt["start"]
-        lo, hi = max(0, boundary - suppression), min(len(records), boundary + suppression + 1)
-        if any((pitch := _get(record, "pitch")) is not None and abs(abs(pitch) - abs(marker_pitch)) <= pitch_tolerance for record in records[lo:hi]):
+        transition_start, transition_end = prior["end"], nxt["start"]
+        lo, hi = max(0, transition_start - suppression), min(len(records) - 1, transition_end + suppression)
+        if any((pitch := _get(record, "pitch")) is not None and abs(abs(pitch) - abs(marker_pitch)) <= pitch_tolerance for record in records[lo:hi + 1]):
             reasons["nearby-pitched-down-marker"] += 1
             continue
         window = int(options["gpsWindowSize"])
@@ -128,14 +132,19 @@ def analyze_gps_turns(records: Sequence[Any], settings: Mapping[str, Any] | None
             reasons["noisy-gps-cluster"] += 1
             continue
         displacement = haversine_meters(prior_centre, next_centre)
-        threshold = max(float(options["gpsMinDisplacementMeters"]), float(options["gpsMinSignalRatio"]) * max(prior_radius, next_radius, 0.5))
-        if displacement < threshold:
+        noise_floor = max(prior_radius, next_radius, 0.5)
+        required_displacement = max(float(options["gpsMinDisplacementMeters"]), float(options["gpsMinSignalRatio"]) * noise_floor)
+        signal_ratio = displacement / noise_floor
+        if displacement < required_displacement:
             reasons["insufficient-displacement"] += 1
             continue
         filename = lambda i: str(_get(records[i], "fileName") or _get(records[i], "filename") or getattr(_get(records[i], "file"), "name", ""))
         detected = max(nxt["end"], next_indices[-1])
         proposals.append({
-            "boundaryIndex": boundary, "detectedAtIndex": detected, "boundaryFile": filename(boundary),
+            "boundaryIndex": boundary, "detectedAtIndex": detected, "boundaryFile": filename(boundary), "detectedAtFile": filename(detected),
+            "evidenceStartIndex": prior["start"], "evidenceEndIndex": nxt["end"], "evidenceStartFile": filename(prior["start"]), "evidenceEndFile": filename(nxt["end"]),
+            "transitionStartIndex": transition_start, "transitionEndIndex": transition_end, "transitionStartFile": filename(transition_start), "transitionEndFile": filename(transition_end),
+            "suppressionStartIndex": lo, "suppressionEndIndex": hi, "requiredDisplacementM": required_displacement, "gpsSignalRatio": signal_ratio,
             "reason": "gps-horizontal-turn", "status": "proposed", "evidence": {
                 "priorDirection": "up" if prior["direction"] > 0 else "down", "nextDirection": "up" if nxt["direction"] > 0 else "down",
                 "priorAltitudeSpanM": abs(_get(records[prior["end"]], "altitude") - _get(records[prior["start"]], "altitude")),
