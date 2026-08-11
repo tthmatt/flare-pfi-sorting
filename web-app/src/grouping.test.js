@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { inferAltitudeStarts } from './grouping.js';
+import { analyzeFiles, inferAltitudeStarts } from './grouping.js';
 
 const settings = {
   altitudeTolerance: 0.75,
@@ -16,6 +16,58 @@ function analyze(data) {
   const pitchStarts = ordered.map(({ pitch }) => Math.abs(Math.abs(pitch) - 90) <= 2);
   return inferAltitudeStarts(ordered, pitchStarts, settings);
 }
+
+const analysisSettings = {
+  ...settings, inferAltitudeTurns: false, sortBy: 'filename', markerPitch: -90,
+  tolerance: 2, folderPrefix: 'test', skipMarkers: false, proposeGpsTurns: false,
+};
+
+test('metadata reads use bounded concurrency, preserve input order, and read every image once', async () => {
+  const files = Array.from({ length: 9 }, (_, index) => ({ name: `${index}.jpg`, size: 1, lastModified: index }));
+  const reads = new Map();
+  let active = 0; let maximumActive = 0;
+  const readMetadata = async (file) => {
+    reads.set(file.name, (reads.get(file.name) || 0) + 1);
+    active += 1;
+    maximumActive = Math.max(maximumActive, active);
+    await new Promise((resolve) => setTimeout(resolve, (9 - Number.parseInt(file.name, 10)) * 2));
+    active -= 1;
+    return { pitch: -10, captureDate: null, altitude: null, altitudeSource: null, latitude: null, longitude: null, flightYaw: null, gimbalYaw: null, warnings: [] };
+  };
+  const result = await analyzeFiles(files, analysisSettings, null, { readMetadata });
+  assert.equal(maximumActive, 4);
+  assert.ok(maximumActive > 1);
+  assert.deepEqual(result.analyses.map((item) => item.file.name), files.map((file) => file.name));
+  assert.deepEqual([...reads.values()], Array(files.length).fill(1));
+});
+
+test('progress is throttled, monotonic, and guaranteed to finish at the total', async () => {
+  const files = Array.from({ length: 8 }, (_, index) => ({ name: `${index}.jpg`, size: 1 }));
+  let clock = 0;
+  const progress = [];
+  const readMetadata = async () => {
+    clock += 20;
+    return { pitch: null, captureDate: null, altitude: null, altitudeSource: null, latitude: null, longitude: null, flightYaw: null, gimbalYaw: null, warnings: [] };
+  };
+  await analyzeFiles(files, analysisSettings, (done, total) => progress.push([done, total, clock]), { readMetadata, now: () => clock });
+  assert.deepEqual(progress.map(([done]) => done), [1, 8]);
+  assert.ok(progress.every((entry, index) => index === 0 || entry[0] >= progress[index - 1][0]));
+  assert.deepEqual(progress.at(-1).slice(0, 2), [8, 8]);
+});
+
+test('one metadata failure does not stop other files and retains normalized error shape', async () => {
+  const files = [{ name: 'bad.jpg', size: 1 }, { name: 'good.jpg', size: 1 }];
+  const result = await analyzeFiles(files, analysisSettings, null, { readMetadata: async (file) => {
+    if (file.name === 'bad.jpg') throw new Error('broken');
+    return { pitch: -12, captureDate: null, altitude: null, altitudeSource: null, latitude: null, longitude: null, flightYaw: null, gimbalYaw: null, warnings: [] };
+  } });
+  assert.deepEqual({ ...result.analyses[0], file: undefined }, {
+    file: undefined, pitch: null, captureDate: null, altitude: null, altitudeSource: null,
+    latitude: null, longitude: null, flightYaw: null, gimbalYaw: null,
+    warnings: ['missing-pitch', 'missing-capture-time', 'missing-altitude', 'missing-gps'], error: 'broken',
+  });
+  assert.equal(result.analyses[1].pitch, -12);
+});
 
 test('10.5 m stays put and the following 10.7 m horizontal photo starts the next folder', () => {
   const result = analyze([[-10, 34], [-10, 26], [-10, 18], [0, 10.5], [0, 10.7], [-10, 18], [-10, 26]]);
