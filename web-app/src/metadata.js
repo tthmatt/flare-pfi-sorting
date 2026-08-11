@@ -1,45 +1,64 @@
 export const METADATA_READ_LIMIT = 2 * 1024 * 1024;
 
-const patterns = (name) => [
-  new RegExp(`(?:[\\w-]+:)?${name}\\s*=\\s*["']([^"']*)["']`, 'i'),
-  new RegExp(`<(?:[^:>]+:)?${name}>\\s*([^<]*)\\s*</`, 'i'),
-];
-const PITCH_PATTERNS = [...patterns('GimbalPitchDegree'), ...patterns('CameraPitchDegree'), ...patterns('CameraPitch')];
-const RELATIVE_ALTITUDE_PATTERNS = patterns('RelativeAltitude');
-const ABSOLUTE_ALTITUDE_PATTERNS = patterns('AbsoluteAltitude');
-const GPS_ALTITUDE_PATTERNS = patterns('GPSAltitude');
-const ALTITUDE_FALLBACK_PATTERNS = [...ABSOLUTE_ALTITUDE_PATTERNS, ...GPS_ALTITUDE_PATTERNS];
-const LATITUDE_PATTERNS = patterns('GPSLatitude');
-const LONGITUDE_PATTERNS = patterns('GPSLongitude');
-const FLIGHT_YAW_PATTERNS = patterns('FlightYawDegree');
-const GIMBAL_YAW_PATTERNS = patterns('GimbalYawDegree');
-const DATE_PATTERNS = [...patterns('DateTimeOriginal'), ...patterns('CreateDate')];
+const METADATA_NAMES = new Set([
+  'gimbalpitchdegree', 'camerapitchdegree', 'camerapitch',
+  'relativealtitude', 'absolutealtitude', 'gpsaltitude',
+  'gpslatitude', 'gpslongitude', 'flightyawdegree', 'gimbalyawdegree',
+  'datetimeoriginal', 'createdate',
+]);
+const decoder = new TextDecoder('utf-8', { fatal: false });
+const NAME_PATTERN = 'GimbalPitchDegree|CameraPitchDegree|CameraPitch|RelativeAltitude|AbsoluteAltitude|GPSAltitude|GPSLatitude|GPSLongitude|FlightYawDegree|GimbalYawDegree|DateTimeOriginal|CreateDate';
+const tagPattern = new RegExp(`(?:^|[<\\s])(?:[\\w-]+:)?(${NAME_PATTERN})\\s*=\\s*["']([^"']*)["']|<(?:[^:>\\s]+:)?(${NAME_PATTERN})(?:\\s[^>]*)?>\\s*([^<]*)\\s*</`, 'gi');
 
-function firstTextMatch(text, candidates) {
-  for (const pattern of candidates) {
-    const match = text.match(pattern);
-    if (match) return match[1].trim();
+// One scan collects the first attribute and element occurrence independently.
+// Keeping the two forms separate preserves the historical attribute-first lookup.
+function collectMetadata(text) {
+  const attributes = new Map();
+  const elements = new Map();
+  tagPattern.lastIndex = 0;
+  let match;
+  while ((match = tagPattern.exec(text)) !== null) {
+    const name = (match[1] || match[3]).toLowerCase();
+    if (!METADATA_NAMES.has(name)) continue;
+    const target = match[1] ? attributes : elements;
+    if (!target.has(name)) target.set(name, (match[2] ?? match[4]).trim());
+  }
+  return { attributes, elements };
+}
+
+function firstValue(metadata, names) {
+  for (const name of names) {
+    const key = name.toLowerCase();
+    if (metadata.attributes.has(key)) return metadata.attributes.get(key);
+    if (metadata.elements.has(key)) return metadata.elements.get(key);
   }
   return null;
 }
 
-function firstFloatMatch(text, candidates) {
-  const raw = firstTextMatch(text, candidates);
+function firstFloat(metadata, names) {
+  const raw = firstValue(metadata, names);
   if (raw === null || !/^[-+]?\d+(?:\.\d+)?$/.test(raw)) return null;
   const value = Number(raw);
   return Number.isFinite(value) ? value : null;
 }
 
-export function parseCaptureDate(text) {
-  for (const pattern of DATE_PATTERNS) {
-    const match = text.match(pattern);
-    if (!match) continue;
-    let normalized = match[1].trim().replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3').replace(' ', 'T');
-    if (!/(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized)) normalized += 'Z';
-    const parsed = new Date(normalized);
-    if (!Number.isNaN(parsed.getTime())) return parsed;
+function captureDateFromMetadata(metadata) {
+  for (const name of ['DateTimeOriginal', 'CreateDate']) {
+    const key = name.toLowerCase();
+    for (const values of [metadata.attributes, metadata.elements]) {
+      const raw = values.get(key);
+      if (raw === undefined) continue;
+      let normalized = raw.replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3').replace(' ', 'T');
+      if (!/(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized)) normalized += 'Z';
+      const parsed = new Date(normalized);
+      if (!Number.isNaN(parsed.getTime())) return parsed;
+    }
   }
   return null;
+}
+
+export function parseCaptureDate(text) {
+  return captureDateFromMetadata(collectMetadata(text));
 }
 
 function parseCoordinate(raw, maximum) {
@@ -53,18 +72,17 @@ function parseCoordinate(raw, maximum) {
   return Math.abs(value) <= maximum ? { value, invalid: false } : { value: null, invalid: true };
 }
 
-void ALTITUDE_FALLBACK_PATTERNS;
-
 export function parseImageMetadataText(text) {
-  const pitch = firstFloatMatch(text, PITCH_PATTERNS);
-  const captureDate = parseCaptureDate(text);
-  const relative = firstFloatMatch(text, RELATIVE_ALTITUDE_PATTERNS);
-  const absolute = firstFloatMatch(text, ABSOLUTE_ALTITUDE_PATTERNS);
-  const gps = firstFloatMatch(text, GPS_ALTITUDE_PATTERNS);
+  const metadata = collectMetadata(text);
+  const pitch = firstFloat(metadata, ['GimbalPitchDegree', 'CameraPitchDegree', 'CameraPitch']);
+  const captureDate = captureDateFromMetadata(metadata);
+  const relative = firstFloat(metadata, ['RelativeAltitude']);
+  const absolute = firstFloat(metadata, ['AbsoluteAltitude']);
+  const gps = firstFloat(metadata, ['GPSAltitude']);
   const altitude = relative ?? absolute ?? gps;
   const altitudeSource = relative !== null ? 'relative' : absolute !== null ? 'absolute' : gps !== null ? 'gps' : null;
-  const latitude = parseCoordinate(firstTextMatch(text, LATITUDE_PATTERNS), 90);
-  const longitude = parseCoordinate(firstTextMatch(text, LONGITUDE_PATTERNS), 180);
+  const latitude = parseCoordinate(firstValue(metadata, ['GPSLatitude']), 90);
+  const longitude = parseCoordinate(firstValue(metadata, ['GPSLongitude']), 180);
   const warnings = [];
   if (pitch === null) warnings.push('missing-pitch');
   if (captureDate === null) warnings.push('missing-capture-time');
@@ -75,12 +93,16 @@ export function parseImageMetadataText(text) {
   return {
     pitch, captureDate, altitude, altitudeSource,
     latitude: latitude.value, longitude: longitude.value,
-    flightYaw: firstFloatMatch(text, FLIGHT_YAW_PATTERNS),
-    gimbalYaw: firstFloatMatch(text, GIMBAL_YAW_PATTERNS), warnings,
+    flightYaw: firstFloat(metadata, ['FlightYawDegree']),
+    gimbalYaw: firstFloat(metadata, ['GimbalYawDegree']), warnings,
   };
 }
 
 export async function readImageMetadata(file) {
-  const buffer = await file.slice(0, Math.min(file.size, METADATA_READ_LIMIT)).arrayBuffer();
-  return parseImageMetadataText(new TextDecoder('utf-8', { fatal: false }).decode(buffer));
+  let buffer = await file.slice(0, Math.min(file.size, METADATA_READ_LIMIT)).arrayBuffer();
+  let text = decoder.decode(buffer);
+  buffer = null;
+  const metadata = parseImageMetadataText(text);
+  text = null;
+  return metadata;
 }

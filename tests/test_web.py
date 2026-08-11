@@ -86,8 +86,8 @@ def test_react_app_records_folder_start_reasons_and_altitude_fallback():
     metadata_source = Path("web-app/src/metadata.js").read_text()
     reports_source = Path("web-app/src/reports.js").read_text()
 
-    assert "RELATIVE_ALTITUDE_PATTERNS" in metadata_source
-    assert "ALTITUDE_FALLBACK_PATTERNS" in metadata_source
+    assert "'relativealtitude'" in metadata_source
+    assert "['RelativeAltitude']" in metadata_source
     assert "inferAltitudeTurns: false" in source
     assert "altitudeDirection" in grouping_source
     assert "startReason" in grouping_source

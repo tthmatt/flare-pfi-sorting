@@ -54,23 +54,49 @@ export function buildGroups(analyses, settings) {
   return { groups, skippedMarkerCount };
 }
 
-export async function analyzeFiles(files, settings, onProgress) {
+export async function analyzeFiles(files, settings, onProgress, options = {}) {
   const images = files.filter(isImageFile);
-  const analyses = [];
-  for (let index = 0; index < images.length; index += 1) {
-    const file = images[index];
-    try {
-      analyses.push({ file, ...await readImageMetadata(file), error: null });
-    } catch (error) {
-      analyses.push({ file, pitch: null, captureDate: null, altitude: null, altitudeSource: null, latitude: null, longitude: null, flightYaw: null, gimbalYaw: null, warnings: ['missing-pitch', 'missing-capture-time', 'missing-altitude', 'missing-gps'], error: error instanceof Error ? error.message : String(error) });
+  const analyses = new Array(images.length);
+  const readMetadata = options.readMetadata || readImageMetadata;
+  const now = options.now || (() => performance.now());
+  const startedAt = now();
+  let nextIndex = 0;
+  let completed = 0;
+  let lastProgressAt = -Infinity;
+  let lastReported = 0;
+
+  function reportProgress(force = false) {
+    const timestamp = now();
+    if (force || timestamp - lastProgressAt >= 100) {
+      lastProgressAt = timestamp;
+      lastReported = completed;
+      onProgress?.(completed, images.length);
     }
-    onProgress?.(index + 1, images.length);
   }
+
+  async function worker() {
+    while (nextIndex < images.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      const file = images[index];
+      try {
+        analyses[index] = { file, ...await readMetadata(file), error: null };
+      } catch (error) {
+        analyses[index] = { file, pitch: null, captureDate: null, altitude: null, altitudeSource: null, latitude: null, longitude: null, flightYaw: null, gimbalYaw: null, warnings: ['missing-pitch', 'missing-capture-time', 'missing-altitude', 'missing-gps'], error: error instanceof Error ? error.message : String(error) };
+      }
+      completed += 1;
+      reportProgress();
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(4, images.length) }, () => worker()));
+  if (lastReported !== images.length) reportProgress(true);
+  const elapsedMs = Math.max(0, now() - startedAt);
   const orderedAnalyses = sortAnalyses(analyses, 'capture');
   const turnAnalysis = settings.proposeGpsTurns
     ? analyzeGpsTurns(orderedAnalyses, settings)
     : { proposals: [], reasonCounts: {} };
-  return { ...buildGroups(analyses, settings), analyses: orderedAnalyses, turnCandidates: turnAnalysis.proposals, turnCandidateReasonCounts: turnAnalysis.reasonCounts };
+  return { ...buildGroups(analyses, settings), analyses, turnCandidates: turnAnalysis.proposals, turnCandidateReasonCounts: turnAnalysis.reasonCounts, elapsedMs };
 }
 
 export function altitudeDirection(previous, current, tolerance) {

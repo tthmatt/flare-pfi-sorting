@@ -5,8 +5,12 @@ import { canPreviewInBrowser, getDisplayPath, getFileName, isImageFile, safePath
 import { downloadBlob, makeZip } from './reports.js';
 import { analysisProgress, analysisSummary, logStatus } from './telemetry.js';
 
-const APP_VERSION = '0.3.4';
+const APP_VERSION = '0.3.5';
 const CHANGELOG = [
+  {
+    version: '0.3.5', date: '2026-08-11',
+    changes: ['Accelerated large browser analyses with single-pass metadata parsing, four bounded readers, and throttled progress.', 'Limited initial thumbnails to 100 while keeping every image in folder tables and exports.'],
+  },
   {
     version: '0.3.4', date: '2026-08-11',
     changes: ['Added conservative GPS-backed horizontal-turn proposals for review and real-flight calibration.', 'GPS proposals are experimental, never change folders, and are not included in ZIP exports.'],
@@ -160,7 +164,7 @@ export default function App() {
       setSkippedMarkerCount(result.skippedMarkerCount);
       setTurnCandidates(result.turnCandidates);
       setTurnReasonCounts(result.turnCandidateReasonCounts);
-      setStatus(analysisSummary(result.groups, result.skippedMarkerCount));
+      setStatus(analysisSummary(result.groups, result.skippedMarkerCount, result.elapsedMs, result.analyses.length));
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
     } finally {
@@ -406,14 +410,18 @@ function FolderTable({ groups }) {
 
 function Preview({ groups }) {
   const items = groups.flatMap((group) => group.files.map((item) => ({ ...item, groupName: group.name })));
+  const [previewLimit, setPreviewLimit] = useState({ groups, count: 100 });
+  const visibleCount = previewLimit.groups === groups ? previewLimit.count : 100;
+  useEffect(() => setPreviewLimit({ groups, count: 100 }), [groups]);
+  const visibleItems = items.slice(0, visibleCount);
   return (
     <section className="panel">
       <div className="panel-heading">
         <h2>Preview</h2>
-        <span>{items.length} shown</span>
+        <span>{visibleItems.length} of {items.length} shown</span>
       </div>
       <div className="preview-grid">
-        {items.map((item) => (
+        {visibleItems.map((item) => (
           <article key={`${item.groupName}-${getDisplayPath(item.file)}`} className="preview-card">
             <ImageThumbnail file={item.file} />
             <strong>{getFileName(item.file)}</strong>
@@ -422,6 +430,10 @@ function Preview({ groups }) {
           </article>
         ))}
       </div>
+      {visibleCount < items.length && <div className="preview-controls">
+        <button type="button" onClick={() => setPreviewLimit({ groups, count: Math.min(visibleCount + 100, items.length) })}>Show next 100</button>
+        <button type="button" className="secondary" onClick={() => setPreviewLimit({ groups, count: items.length })}>Show all</button>
+      </div>}
     </section>
   );
 }

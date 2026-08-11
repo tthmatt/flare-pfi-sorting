@@ -1,6 +1,6 @@
 # Drone Image Sorter Web App
 
-**Current version:** 0.3.4
+**Current version:** 0.3.5
 
 Browser-based version of the PFI drone inspection image sorter for deployment on Vercel or any static hosting provider.
 
@@ -44,6 +44,12 @@ Import this GitHub repository into Vercel and use these settings:
 
 
 ## Changelog
+
+### 0.3.5 - 2026-08-11
+
+- Parse the full 2 MiB metadata window in one pass and reuse the browser text decoder.
+- Analyze with four bounded readers and throttled, deterministic progress updates.
+- Render previews in batches of 100 without changing folder tables, CSV reports, or ZIP membership.
 
 ### 0.3.4 - 2026-08-11
 
