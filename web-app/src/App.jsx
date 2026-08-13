@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import flareLogo from './assets/flare-dynamics-logo.svg';
 import { analyzeFiles } from './grouping.js';
 import { canPreviewInBrowser, getDisplayPath, getFileName, isImageFile, safePathPart } from './files.js';
@@ -319,6 +320,7 @@ export default function App() {
           <Changelog />
         </section>
       </div>
+      <Analytics />
     </main>
   );
 }
