@@ -1,6 +1,6 @@
 # Drone Image Sorter Web App
 
-**Current version:** 0.4.6
+**Current version:** 0.5.0
 
 Browser-based version of the PFI drone inspection image sorter for deployment on Vercel or any static hosting provider.
 
@@ -14,6 +14,29 @@ Browser-based version of the PFI drone inspection image sorter for deployment on
 - Generates a ZIP download containing the sorted folder structure and a `sort_report.csv` audit file.
 
 Images are not uploaded to a server by this app.
+
+## Desktop review workspace
+
+Version 0.5.0 organizes the browser app around adding photos, reviewing the
+folder plan, and exporting a ZIP. The compact settings sidebar and fixed export
+bar remain accessible while scrolling through a large photo selection.
+
+- Click a folder in **Folder plan** to jump to its photos.
+- Combine filename/path search with the folder dropdown and the **Folder starts**,
+  **Corrected**, **Skipped markers**, or **Unknown pitch** review filters.
+- Click a JPG/PNG thumbnail to open the larger viewer. Use its buttons or the
+  left/right arrow keys to browse the filtered sequence; Escape closes it.
+- Read recorded pitch, altitude, sideways movement and folder decisions directly
+  on each card. Folder starts and skipped markers have explicit text labels.
+- Expand **Advanced settings** for pitch thresholds, altitude fallback and
+  experimental GPS proposals. Telemetry, detailed help and version history are
+  also collapsible.
+- **Include CSV report** adds the report to the ZIP; it is off by default, as
+  before. **Skip marker photos** controls whether marker images are exported.
+
+Review filters only change what is displayed. ZIP export still includes every
+output folder. Sorting, metadata, visual-pass detection and original photo bytes
+are unchanged by the layout update.
 
 ## Sideways movement in image previews
 
@@ -34,7 +57,7 @@ This display does not change pass detection, folder decisions, CSV or ZIP output
 
 ## Advanced settings
 
-**Infer missed altitude turns** and **Altitude reversal tolerance (metres)** are
+**Infer missed altitude turns** and **Altitude tolerance (metres)** are
 inside **Advanced settings** in the sidebar. The section starts collapsed and
 altitude inference remains off by default. Enable it when you want automatic
 altitude-based fallback splitting, including when GPS or camera-direction data
@@ -56,7 +79,7 @@ sweeps at steady height, a missed pitch marker can be reviewed using ordinary ph
    to move the first photo if necessary, then **Accept boundary · keep photo**,
    or dismiss the suggestion. Suggestions alone do not change any folder.
 4. Review the full flight, then download the ZIP. Accepted starts retain the
-   inspection photo even with **Skip pitched-down marker photos** enabled.
+   inspection photo even with **Skip marker photos** enabled.
 
 **Start folder here (keep photo)** is also available on every photo for boundaries
 the detector misses. **Keep in current folder (inspection photo)** prevents a
@@ -188,12 +211,12 @@ marker. An explicit correction starts a folder even beside another marker.
 - **Keep in current folder (inspection photo)** keeps the photo in the output and prevents an
   automatic or inferred split at that photo.
 - Corrections update folder previews, CSV reports, and the downloaded ZIP immediately.
-- **Skip pitched-down marker photos in output** also skips manually marked photos;
+- **Skip marker photos** also skips manually marked photos;
   the next inspection photo starts the folder. Skipped markers remain in the review
   so you can undo mistakes, including when every photo was skipped.
 - Search by filename or folder path to find a photo in a large selection.
 - Corrections survive re-analysis of the same selection, but choosing new files
-  or reloading the page clears them. **Reset all corrections** restores automation.
+  or reloading the page clears them. **Reset corrections** restores automation.
 - Original image bytes and recorded pitch are unchanged. CSV reports include
   `manual-marker` folder-start reasons and a `marker_override` column.
 

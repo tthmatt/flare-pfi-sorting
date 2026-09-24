@@ -11,9 +11,14 @@ import { createCalibrationReport } from './calibration.js';
 import { analysisProgress, analysisSummary, logStatus } from './telemetry.js';
 import { analyzeVisualPasses } from './visualAnalysis.js';
 import { buildPreviewMovements } from './previewMovement.js';
+import { Icon, PhotoViewer } from './ui.jsx';
 
-const APP_VERSION = '0.4.6';
+const APP_VERSION = '0.5.0';
 const CHANGELOG = [
+  {
+    version: '0.5.0', date: '2026-09-24',
+    changes: ['Redesigned the desktop workspace with a compact settings sidebar and a clear import, review and export workflow.', 'Added folder and review filters, larger photo previews, full-size image viewing and clearer folder-start labels.', 'Kept telemetry, detailed guidance and version history available in collapsible sections.'],
+  },
   {
     version: '0.4.6', date: '2026-09-24',
     changes: ['Detect stable, opposing vertical passes despite a moderate camera-heading change or height offset between columns.', 'Explain the heading change and retain inconclusive image checks when camera views do not align.'],
@@ -125,11 +130,24 @@ function formatBytes(bytes) {
 }
 
 function formatPitch(pitch) {
-  return pitch === null || pitch === undefined ? 'Unknown' : `${pitch.toFixed(1)} deg`;
+  return pitch === null || pitch === undefined ? 'Unknown' : `${pitch.toFixed(1)}°`;
 }
 
 function formatAltitude(altitude) {
   return altitude === null || altitude === undefined ? 'Unknown' : `${altitude.toFixed(1)} m`;
+}
+
+const START_REASON_LABELS = {
+  'first-image': 'First photo',
+  'pitched-down': 'Pitch marker',
+  'manual-marker': 'Manual marker',
+  'manual-split': 'Inspection pass',
+  'altitude-reversal': 'Altitude turn',
+  'horizontal-traverse': 'Sideways traverse',
+};
+
+function startReasonLabel(reason) {
+  return START_REASON_LABELS[reason] ?? reason;
 }
 
 export default function App() {
@@ -145,6 +163,9 @@ export default function App() {
   const [isWorking, setIsWorking] = useState(false);
   const [visualResult, setVisualResult] = useState(null);
   const [visualWorking, setVisualWorking] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [selectedFolder, setSelectedFolder] = useState('');
+  const [reviewResetKey, setReviewResetKey] = useState(0);
   const [settings, setSettings] = useState({
     tolerance: 2,
     inferAltitudeTurns: false,
@@ -194,6 +215,7 @@ export default function App() {
     if (isWorking) return;
     const selected = Array.from(fileList || []);
     setFiles(selected);
+    setSelectedFolder('');
     setAnalyses([]);
     setVisualResult(null);
     setMarkerOverrides(new Map());
@@ -283,138 +305,103 @@ export default function App() {
 
   return (
     <main className="app-shell">
-      <section className="hero">
-        <div className="brand-lockup">
-          <img src={flareLogo} alt="Flare Dynamics" />
-        </div>
-        <div>
-          <p className="eyebrow">Flare Dynamics</p>
-          <div className="title-row">
-            <h1>PFI Drone Image Sorter</h1>
-            <span className="version-badge">v{APP_VERSION}</span>
-          </div>
-          <p>Flare Dynamics inspection photo grouping. Images are processed locally in your browser and exported as a ZIP.</p>
-        </div>
-      </section>
+      <header className="app-header">
+        <div className="brand-lockup"><img src={flareLogo} alt="Flare Dynamics" /><span className="brand-divider" /><span>Flight operations</span></div>
+        <div className="header-meta"><span className="privacy-note"><Icon name="shield" /> Photos stay on your device</span><span className="version-badge">v{APP_VERSION}</span></div>
+      </header>
 
-      <section className="stats-bar" aria-label="Selected image summary">
-        <span>{imageFiles.length} files</span>
-        <span>{groups.length} folders</span>
-        <span>{formatBytes(totalSize)}</span>
-        {skippedMarkerCount > 0 && <span>{skippedMarkerCount} skipped markers</span>}
-      </section>
+      <div className="workspace-heading">
+        <div><p className="eyebrow">Inspection workspace</p><h1>PFI photo sorter<span className="title-dot">.</span></h1><p>Turn a flight’s photos into organized inspection folders.</p></div>
+        <ol className="workflow" aria-label="Sorting workflow">
+          <li className={analyses.length ? 'complete' : 'current'} aria-current={!analyses.length ? 'step' : undefined}><span>{analyses.length ? <Icon name="check" /> : '01'}</span><div>Add photos<small>Select & analyze</small></div></li>
+          <li className={analyses.length ? 'current' : ''} aria-current={analyses.length ? 'step' : undefined}><span>02</span><div>Review folders<small>Check each pass</small></div></li>
+          <li><span>03</span><div>Export ZIP<small>Ready for reporting</small></div></li>
+        </ol>
+      </div>
 
       <div className="layout">
-        <aside className="panel controls">
+        <aside className="panel controls" aria-label="Sort settings">
+          <div className="panel-heading"><h2><Icon name="settings" /> Sort settings</h2><span className="badge">Local</span></div>
+          <p className="section-description">Set up your inspection folders.</p>
           <fieldset disabled={isWorking}>
-          <h2>Input</h2>
-          <div className="button-grid">
-            <button type="button" onClick={() => folderInputRef.current?.click()} disabled={isWorking}>Folder</button>
-            <button type="button" className="secondary" onClick={() => fileInputRef.current?.click()} disabled={isWorking}>Files</button>
-          </div>
-          <input ref={folderInputRef} className="hidden-input" type="file" webkitdirectory="" directory="" multiple onChange={(event) => handleFileList(event.target.files)} />
-          <input ref={fileInputRef} className="hidden-input" type="file" multiple accept=".jpg,.jpeg,.tif,.tiff,.png,.dng" onChange={(event) => handleFileList(event.target.files)} />
-
-          <h2>Sort</h2>
-          <label>
-            Marker pitch
-            <input type="number" step="0.1" value={settings.markerPitch} onChange={(event) => updateSetting('markerPitch', Number.parseFloat(event.target.value) || -90)} />
-          </label>
-          <label>
-            Pitch tolerance
-            <input type="number" min="0" step="0.1" value={settings.tolerance} onChange={(event) => updateSetting('tolerance', Math.max(0, Number.parseFloat(event.target.value) || 0))} />
-          </label>
-          <label>
-            Folder prefix
-            <input type="text" value={settings.folderPrefix} onChange={(event) => updateSetting('folderPrefix', event.target.value)} />
-          </label>
-          <label>
-            Sort order
-            <select value={hasInspectionSplits ? 'capture' : settings.sortBy} disabled={hasInspectionSplits} onChange={(event) => updateSetting('sortBy', event.target.value)}>
-              <option value="filename">Filename / folder order</option>
-              <option value="capture">Capture time, then filename</option>
-              <option value="modified">Modified time, then filename</option>
-            </select>
-          </label>
-          {hasInspectionSplits && <p className="review-help">Inspection splits use capture-time order. Reset those corrections to choose another order.</p>}
-          <label className="check-row">
-            <input type="checkbox" checked={settings.proposeGpsTurns} onChange={(event) => updateSetting('proposeGpsTurns', event.target.checked)} />
-            Show experimental GPS turn proposals — does not change folders
-          </label>
-          <label className="check-row">
-            <input type="checkbox" checked={settings.keepFolderPaths} onChange={(event) => updateSetting('keepFolderPaths', event.target.checked)} />
-            Keep original folder paths inside each output folder
-          </label>
-          <label className="check-row">
-            <input type="checkbox" checked={settings.skipMarkers} onChange={(event) => updateSetting('skipMarkers', event.target.checked)} />
-            Skip pitched-down marker photos in output
-          </label>
-          <label className="check-row">
-            <input type="checkbox" checked={settings.removeCsvReport} onChange={(event) => updateSetting('removeCsvReport', event.target.checked)} />
-            Remove CSV report from sorted ZIP
-          </label>
-
-          <details className="advanced-settings">
-            <summary>Advanced settings{settings.inferAltitudeTurns && <span className="advanced-active">Altitude fallback on</span>}</summary>
-            <p className="review-help">Automatically split folders using altitude patterns. This fallback can help when GPS or camera-direction data is missing.</p>
-            <p className="review-help">Leave this option off when using Visual pass suggestions. Visual mode checks altitude independently.</p>
-            <label className="check-row">
-              <input type="checkbox" checked={settings.inferAltitudeTurns} onChange={(event) => updateSetting('inferAltitudeTurns', event.target.checked)} />
-              Infer missed altitude turns
+            <legend className="sr-only">Sorting and export options</legend>
+            <label>Folder prefix<input type="text" value={settings.folderPrefix} onChange={(event) => updateSetting('folderPrefix', event.target.value)} /></label>
+            <p className="field-hint folder-example">{safePathPart(settings.folderPrefix)}_001</p>
+            <label>Sort order
+              <select value={hasInspectionSplits ? 'capture' : settings.sortBy} disabled={hasInspectionSplits} onChange={(event) => updateSetting('sortBy', event.target.value)}>
+                <option value="filename">Filename / folder order</option>
+                <option value="capture">Capture time, then filename</option>
+                <option value="modified">Modified time, then filename</option>
+              </select>
             </label>
-            <label>
-              Altitude reversal tolerance (metres)
-              <input type="number" min="0" step="0.05" value={settings.altitudeTolerance} onChange={(event) => updateSetting('altitudeTolerance', Math.max(0, Number.parseFloat(event.target.value) || 0))} />
-            </label>
-          </details>
+            {hasInspectionSplits && <p className="field-hint">Inspection splits use capture time. Reset those corrections to change the order.</p>}
 
-          <h2>Output</h2>
-          <div className="button-grid">
-            <button type="button" onClick={handleAnalyze} disabled={isWorking || !imageFiles.length}>Analyze images</button>
-            <button type="button" className="download" onClick={handleDownloadZip} disabled={isWorking || !groups.length}>Download ZIP</button>
-          </div>
+            <div className="settings-section"><h3>ZIP contents</h3>
+              <label className="check-row"><input type="checkbox" checked={settings.skipMarkers} onChange={(event) => updateSetting('skipMarkers', event.target.checked)} /><span>Skip marker photos<small>Use them to split folders, then leave them out of the ZIP.</small></span></label>
+              <label className="check-row"><input type="checkbox" checked={!settings.removeCsvReport} onChange={(event) => updateSetting('removeCsvReport', !event.target.checked)} /><span>Include CSV report<small>Add a record of each folder decision.</small></span></label>
+              <label className="check-row"><input type="checkbox" checked={settings.keepFolderPaths} onChange={(event) => updateSetting('keepFolderPaths', event.target.checked)} /><span>Keep original paths<small>Preserve subfolders inside each output folder.</small></span></label>
+            </div>
+
+            <details className="advanced-settings">
+              <summary>Advanced settings{settings.inferAltitudeTurns && <span className="advanced-active">Altitude fallback on</span>}</summary>
+              <div className="field-pair">
+                <label>Marker pitch (°)<input type="number" step="0.1" value={settings.markerPitch} onChange={(event) => updateSetting('markerPitch', Number.parseFloat(event.target.value) || -90)} /></label>
+                <label>Tolerance (°)<input type="number" min="0" step="0.1" value={settings.tolerance} onChange={(event) => updateSetting('tolerance', Math.max(0, Number.parseFloat(event.target.value) || 0))} /></label>
+              </div>
+              <p className="field-hint">Altitude fallback can help when GPS or camera direction is missing. Leave it off for Visual pass suggestions, which checks altitude independently.</p>
+              <label className="check-row"><input type="checkbox" checked={settings.inferAltitudeTurns} onChange={(event) => updateSetting('inferAltitudeTurns', event.target.checked)} /><span>Infer missed altitude turns</span></label>
+              <label>Altitude tolerance (metres)<input type="number" min="0" step="0.05" value={settings.altitudeTolerance} onChange={(event) => updateSetting('altitudeTolerance', Math.max(0, Number.parseFloat(event.target.value) || 0))} /></label>
+              <label className="check-row"><input type="checkbox" checked={settings.proposeGpsTurns} onChange={(event) => updateSetting('proposeGpsTurns', event.target.checked)} /><span>Experimental GPS proposals<small>Calibration only. Does not change folders.</small></span></label>
+            </details>
           </fieldset>
+          <div className="rule-summary"><Icon name="marker" /><div><strong>{settings.markerPitch}° ± {settings.tolerance}°</strong><span>Current pitch marker rule</span></div></div>
         </aside>
 
         <section className="content">
-          <section className="drop-zone" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); handleFileList(event.dataTransfer.files); }}>
-            <div className="illustration">-90°</div>
-            <div>
-              <h2>Inspection set</h2>
-              <p>{settings.skipMarkers ? `Every image near ${settings.markerPitch}° starts a new output folder, but marker photos are skipped in the ZIP.` : `Every image near ${settings.markerPitch}° starts a new output folder. The marker image is placed at the beginning of that new folder. If enabled, a sustained altitude reversal or confirmed horizontal traverse can start a fallback folder when a marker is missed.`}</p>
-              <p className="status">{status}</p>
-              {analyses.length > 0 && <p role="status">{analysisSummary(groups, skippedMarkerCount, elapsedMs, analyses.length)}</p>}
-            </div>
+          <section className={`panel import-panel ${isDragging ? 'is-dragging' : ''} ${imageFiles.length ? 'has-files' : ''}`} aria-label="Add inspection photos"
+            onDragOver={(event) => { event.preventDefault(); if (!isWorking) setIsDragging(true); }}
+            onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setIsDragging(false); }}
+            onDrop={(event) => { event.preventDefault(); setIsDragging(false); handleFileList(event.dataTransfer.files); }}>
+            <div className="import-icon"><Icon name={imageFiles.length ? 'images' : 'upload'} /></div>
+            <div className="import-copy"><h2>{imageFiles.length ? `${imageFiles.length.toLocaleString()} photos selected` : 'Add your inspection photos'}</h2><p>{imageFiles.length ? `${formatBytes(totalSize)} · ${files.length - imageFiles.length} unsupported files ignored` : 'Drop image files here, or choose a folder to get started.'}</p><span className="file-types">JPG · PNG · TIFF · DNG</span></div>
+            <div className="import-actions"><div className="button-row">
+              <button type="button" className={imageFiles.length ? 'secondary' : ''} onClick={() => folderInputRef.current?.click()} disabled={isWorking}><Icon name="folder" />{imageFiles.length ? 'Change folder' : 'Choose folder'}</button>
+              <button type="button" className="secondary" onClick={() => fileInputRef.current?.click()} disabled={isWorking}>Choose files</button>
+            </div>{imageFiles.length > 0 && <button type="button" onClick={handleAnalyze} disabled={isWorking}><Icon name="scan" />{analyses.length ? 'Re-analyze images' : 'Analyze images'}<Icon name="arrow" /></button>}</div>
+            <input ref={folderInputRef} className="hidden-input" type="file" aria-label="Choose image folder" webkitdirectory="" directory="" multiple onChange={(event) => handleFileList(event.target.files)} />
+            <input ref={fileInputRef} className="hidden-input" type="file" aria-label="Choose image files" multiple accept=".jpg,.jpeg,.tif,.tiff,.png,.dng" onChange={(event) => handleFileList(event.target.files)} />
           </section>
 
-          <div className="metric-grid">
-            <div><strong>{imageFiles.length}</strong><span>Ready</span></div>
-            <div><strong>{unknownPitchCount}</strong><span>Unknown pitch</span></div>
-            <div><strong>{settings.markerPitch}° ± {settings.tolerance}°</strong><span>Primary marker rule</span></div>
-            <div><strong>{settings.inferAltitudeTurns ? 'On' : 'Off'}</strong><span>Altitude fallback</span></div>
-          </div>
+          <div className="status-line" role="status" aria-live="polite" aria-atomic="true"><Icon name={isWorking ? 'loader' : analyses.length ? 'check' : 'info'} className={isWorking ? 'spin' : ''} /><span>{status}</span></div>
 
-          {analyses.length > 0 && <TelemetryCoverage analyses={analyses} />}
-          {analyses.length > 0 && <VisualPassPanel result={visualResult} working={visualWorking} disabled={isWorking}
-            analyses={captureOrderedAnalyses} movements={previewMovements} overrides={markerOverrides} onAnalyze={handleVisualAnalyze}
-            onCancel={() => visualController.current?.abort()} onOverride={setMarkerOverride} />}
-          {analyses.length > 0 && settings.proposeGpsTurns && <TurnProposalPanel key={calibrationKey} proposals={turnCandidates} reasons={turnReasonCounts} analyses={captureOrderedAnalyses} movements={previewMovements} settings={settings} />}
+          {analyses.length > 0 && <div className="metric-grid" aria-label="Analysis summary">
+            <div><Icon name="images" /><strong>{analyses.length.toLocaleString()}</strong><span>Photos analyzed</span></div>
+            <div><Icon name="folder" /><strong>{groups.length.toLocaleString()}</strong><span>Output folders</span></div>
+            <div><Icon name="marker" /><strong>{skippedMarkerCount.toLocaleString()}</strong><span>Markers skipped</span></div>
+            <div className={unknownPitchCount ? 'needs-review' : ''}><Icon name="info" /><strong>{unknownPitchCount.toLocaleString()}</strong><span>Unknown pitch</span></div>
+          </div>}
 
-          <section className="panel">
-            <div className="panel-heading">
-              <h2>Folders</h2>
-              <span>{groups.length ? 'Ready' : analyses.length ? 'No output' : 'Waiting'}</span>
-            </div>
-            {groups.length ? <FolderTable groups={groups} /> : analyses.length
-              ? <p className="empty-state">All photos are skipped markers. Review their folder decisions below or turn off “Skip pitched-down marker photos in output”.</p>
+          <section className="panel folder-panel">
+            <div className="panel-heading"><div><h2><Icon name="folder" /> Folder plan</h2><p className="section-description">{groups.length ? 'Select a folder to review its photos.' : 'Your inspection passes will appear here.'}</p></div><span className="badge">{groups.length ? `${groups.length} folders` : analyses.length ? 'No output' : 'Waiting for photos'}</span></div>
+            {groups.length ? <FolderTable groups={groups} selectedFolder={selectedFolder} onSelect={(name) => { setSelectedFolder(name); setReviewResetKey((key) => key + 1); document.getElementById('photo-review')?.scrollIntoView({ block: 'start' }); }} /> : analyses.length
+              ? <p className="empty-state">All photos are skipped markers. Review their folder decisions below or turn off “Skip marker photos”.</p>
               : <EmptyState />}
           </section>
 
-          {analyses.length > 0 && <Preview analyses={reviewedAnalyses} groups={groups} settings={settings} movements={previewMovements} onOverride={setMarkerOverride} onReset={resetMarkerOverrides} overrideCount={markerOverrides.size} disabled={isWorking} />}
+          {analyses.length > 0 && <VisualPassPanel result={visualResult} working={visualWorking} disabled={isWorking}
+            analyses={captureOrderedAnalyses} movements={previewMovements} overrides={markerOverrides} onAnalyze={handleVisualAnalyze}
+            onCancel={() => visualController.current?.abort()} onOverride={setMarkerOverride} />}
 
+          {analyses.length > 0 && <Preview key={`${selectedFolder}:${reviewResetKey}`} analyses={reviewedAnalyses} groups={groups} settings={settings} movements={previewMovements} onOverride={setMarkerOverride} onReset={resetMarkerOverrides} overrideCount={markerOverrides.size} disabled={isWorking} selectedFolder={selectedFolder} onSelectFolder={setSelectedFolder} />}
+          {analyses.length > 0 && <TelemetryCoverage analyses={analyses} />}
+          {analyses.length > 0 && settings.proposeGpsTurns && <TurnProposalPanel key={calibrationKey} proposals={turnCandidates} reasons={turnReasonCounts} analyses={captureOrderedAnalyses} movements={previewMovements} settings={settings} />}
           <Changelog />
         </section>
       </div>
+      <footer className="export-bar">
+        <div className="export-summary"><Icon name="folder" /><div><strong>{groups.length ? `${groups.length} folders · ${groups.reduce((count, group) => count + group.files.length, 0).toLocaleString()} photos in ZIP` : 'Your next inspection, organized.'}</strong><span>{analyses.length ? analysisSummary(groups, skippedMarkerCount, elapsedMs, analyses.length) : 'Add photos and analyze them to build your folder plan.'}</span></div></div>
+        <div className="export-actions">{analyses.length > 0 && <span className="export-reminder">Review each pass before exporting</span>}<button type="button" className="download" onClick={handleDownloadZip} disabled={isWorking || !groups.length}><Icon name="download" /> Download ZIP<Icon name="arrow" /></button></div>
+      </footer>
       <Analytics />
     </main>
   );
@@ -454,13 +441,10 @@ function VisualPassPanel({ result, working, disabled, analyses, movements, overr
     setApplied((current) => new Map(current).set(proposal.file, { file, priorMode }));
   };
   return <section className="panel visual-pass-panel" aria-label="Visual pass suggestions">
-    <div className="panel-heading"><h2>Visual pass suggestions</h2><span>Experimental</span></div>
-    <p className="review-help">One folder per inspection column, whether the drone flies up/down or the camera tilts at steady height. Check sideways movement using photos, GPS, camera direction and altitude. Photos stay on this device. Each suggestion needs your review.</p>
-    <p className="review-help">Suggestions use capture time, GPS, gimbal yaw, pitch and altitude. Image checks need overlapping JPG/PNG views at similar angles. Repeated windows, large angle changes or missing metadata can leave passes undetected. Review the full flight before export.</p>
-    <div className="button-grid">
-      <button type="button" onClick={onAnalyze} disabled={disabled}>Find pass boundaries</button>
-      {working && <button type="button" className="secondary" onClick={onCancel}>Cancel visual analysis</button>}
+    <div className="suggestion-heading"><div><div className="panel-heading"><h2><Icon name="scan" /> Visual pass suggestions</h2><span className="badge">Experimental</span></div><p className="section-description">Missed a marker? Find possible pass boundaries, then review and accept each one.</p></div>
+      <div className="button-row"><button type="button" className="secondary" onClick={onAnalyze} disabled={disabled}><Icon name="scan" />{working ? 'Checking photos…' : 'Find pass boundaries'}</button>{working && <button type="button" className="secondary" onClick={onCancel}>Cancel visual analysis</button>}</div>
     </div>
+    <details className="inline-help"><summary>How suggestions work & limitations</summary><p>Find one folder per inspection column using sideways movement, photos, GPS, camera direction and altitude. Suggestions never change folders until you accept them.</p><p>Capture time, GPS, gimbal yaw, pitch and altitude are required. Image checks need overlapping JPG/PNG views at similar angles. Repeated windows, large angle changes or missing metadata can leave passes undetected. Review the full flight before export.</p></details>
     {result && !result.proposals.length && <p className="empty-state">No supported transition candidate was found. This does not mean the flight contains only one pass. Use “Start folder here (keep photo)” in Review photos for missed boundaries.</p>}
     {unconfirmedSweeps > 0 && <p>{unconfirmedSweeps} potential camera sweep {unconfirmedSweeps === 1 ? 'transition lacked' : 'transitions lacked'} supporting image matches and {unconfirmedSweeps === 1 ? 'was' : 'were'} not suggested. Review those boundaries manually.</p>}
     {result?.unchecked > 0 && <p role="status">{result.unchecked} further candidates were not checked because this review is limited to 200. Review those photos manually.</p>}
@@ -557,8 +541,8 @@ function TelemetryCoverage({ analyses }) {
   const available = (key) => analyses.filter((item) => item[key] !== null && item[key] !== undefined).length;
   const sources = ['relative', 'absolute', 'gps'];
   return (
-    <section className="panel telemetry-coverage">
-      <div className="panel-heading"><h2>Telemetry coverage</h2><span>{total} files</span></div>
+    <details className="panel telemetry-coverage disclosure-panel">
+      <summary><span><Icon name="chart" /> Telemetry coverage</span><span className="disclosure-meta">{total} files</span></summary>
       <div className="coverage-grid">
         <span>GPS coordinates available <strong>{analyses.filter((item) => item.latitude !== null && item.longitude !== null).length} / {total}</strong></span>
         <span>Pitch available <strong>{available('pitch')} / {total}</strong></span>
@@ -568,111 +552,97 @@ function TelemetryCoverage({ analyses }) {
         <span>Gimbal yaw available <strong>{available('gimbalYaw')} / {total}</strong></span>
         <span>Files with metadata warnings <strong>{analyses.filter((item) => item.warnings.length > 0).length}</strong></span>
       </div>
-    </section>
+    </details>
   );
 }
 
 function Changelog() {
   return (
-    <section className="panel changelog">
-      <div className="panel-heading">
-        <h2>Version history</h2>
-        <span>v{APP_VERSION}</span>
-      </div>
-      {CHANGELOG.map((release) => (
-        <article key={release.version} className="release-notes">
-          <h3>{release.version}</h3>
-          <p>{release.date}</p>
-          <ul>
-            {release.changes.map((change) => (
-              <li key={change}>{change}</li>
-            ))}
-          </ul>
-        </article>
-      ))}
-    </section>
+    <details className="changelog disclosure-panel">
+      <summary><span><Icon name="history" /> Version history</span><span className="disclosure-meta">v{APP_VERSION}</span></summary>
+      <div className="release-list">{CHANGELOG.map((release) => (
+        <article key={release.version} className="release-notes"><div><h3>{release.version}</h3><p>{release.date}</p></div><ul>{release.changes.map((change) => <li key={change}>{change}</li>)}</ul></article>
+      ))}</div>
+    </details>
   );
 }
 
 function EmptyState() {
-  return (
-    <p className="empty-state">Select images, then click Analyze images. The app will create a new folder each time it finds a pitch close to -90° by default.</p>
-  );
+  return <div className="folder-empty"><div className="empty-folders" aria-hidden="true"><Icon name="folder" /><Icon name="folder" /><Icon name="folder" /></div><h3>A clear folder for every inspection pass</h3><p>Analyze your photos to detect pitch markers and build a folder plan.<br />You can review and adjust every boundary before exporting.</p><span><Icon name="shield" /> Original files stay unchanged</span></div>;
 }
 
-function FolderTable({ groups }) {
+function FolderTable({ groups, selectedFolder, onSelect }) {
   return (
-    <div className="table-wrap">
+    <div className="table-wrap" tabIndex={0} role="region" aria-label="Output folders">
       <table>
-        <thead>
-          <tr>
-            <th>Folder</th>
-            <th>Images</th>
-            <th>Start reason</th>
-            <th>Size</th>
+        <thead><tr><th scope="col">Output folder</th><th scope="col">Photos</th><th scope="col">Starts with</th><th scope="col">Size</th><th scope="col"><span className="sr-only">Review folder</span></th></tr></thead>
+        <tbody>{groups.map((group, index) => (
+          <tr key={group.name} className={selectedFolder === group.name ? 'selected-row' : ''}>
+            <td><button type="button" className="folder-link" onClick={() => onSelect(group.name)}><span className="folder-number">{String(index + 1).padStart(2, '0')}</span><Icon name="folder" /><span>{group.name}</span></button></td>
+            <td className="tabular">{group.files.length}</td><td><span className="reason-badge">{startReasonLabel(group.startReason)}</span></td><td className="table-size tabular">{formatBytes(group.size)}</td>
+            <td><button type="button" className="icon-button secondary" aria-label={`Review ${group.name}`} onClick={() => onSelect(group.name)}><Icon name="arrow" /></button></td>
           </tr>
-        </thead>
-        <tbody>
-          {groups.map((group) => (
-            <tr key={group.name}>
-              <td><span className="folder-pill">{group.name}</span></td>
-              <td>{group.files.length}</td>
-              <td>{group.startReason}</td>
-              <td>{formatBytes(group.size)}</td>
-            </tr>
-          ))}
-        </tbody>
+        ))}</tbody>
       </table>
     </div>
   );
 }
 
-function Preview({ analyses, groups, settings, movements, onOverride, onReset, overrideCount, disabled }) {
+function Preview({ analyses, groups, settings, movements, onOverride, onReset, overrideCount, disabled, selectedFolder, onSelectFolder }) {
   const [visibleCount, setVisibleCount] = useState(100);
   const [search, setSearch] = useState('');
+  const [reviewFilter, setReviewFilter] = useState('all');
+  const [viewerFile, setViewerFile] = useState(null);
+  const viewerTriggerRef = useRef(null);
   const items = useMemo(() => buildReviewItems(analyses, groups, settings), [analyses, groups, settings]);
-  const filteredItems = items.filter((item) => getDisplayPath(item.file).toLowerCase().includes(search.trim().toLowerCase()));
+  const folder = groups.some((group) => group.name === selectedFolder) ? selectedFolder : '';
+  const inFolder = folder ? items.filter((item) => item.groupName === folder) : items;
+  const filters = [
+    { id: 'all', label: 'All photos', matches: () => true },
+    { id: 'starts', label: 'Folder starts', matches: (item) => Boolean(item.startReason) },
+    { id: 'corrected', label: 'Corrected', matches: (item) => item.markerOverride !== 'auto' },
+    { id: 'skipped', label: 'Skipped markers', matches: (item) => !item.groupName },
+    { id: 'unknown', label: 'Unknown pitch', matches: (item) => item.pitch === null },
+  ];
+  const activeFilter = filters.find((filter) => filter.id === reviewFilter);
+  const filteredItems = inFolder.filter((item) => activeFilter.matches(item) && getDisplayPath(item.file).toLowerCase().includes(search.trim().toLowerCase()));
   const visibleItems = filteredItems.slice(0, visibleCount);
+  const viewerIndex = filteredItems.findIndex((item) => item.file === viewerFile);
+  const resetFilters = () => { setSearch(''); onSelectFolder(''); setReviewFilter('all'); setVisibleCount(100); };
   return (
-    <section className="panel">
-      <div className="panel-heading">
-        <h2>Review photos</h2>
-        <span>{visibleItems.length} of {filteredItems.length} shown</span>
-      </div>
-      <p className="review-help">Use “Start folder here (keep photo)” for the first inspection photo of a new pass. Use the marker option for a downward marker with incorrect recorded pitch. “Keep in current folder” prevents a split at that photo. Corrections update folders and the ZIP immediately.</p>
-      <p className="review-help">Skipped markers stay visible here. Corrections are kept when you re-analyze, and cleared when you choose new files or reload the page.</p>
-      <p className="review-help">Sideways movement is a GPS estimate from the previous photo with a valid capture time, including skipped markers. Left/right is relative to that photo’s camera heading. Search and display order do not change the comparison.</p>
+    <section className="panel photo-review" id="photo-review" aria-label="Review photos">
+      <div className="panel-heading"><div><h2><Icon name="images" /> Review photos</h2><p className="section-description">Check the sequence. Adjust where each folder starts.</p></div><span className="badge">{visibleItems.length} of {filteredItems.length} shown</span></div>
       <div className="review-toolbar">
-        <label>Find a photo<input type="search" value={search} onChange={(event) => { setSearch(event.target.value); setVisibleCount(100); }} placeholder="Filename or folder path" /></label>
-        <button type="button" className="secondary" disabled={disabled || !overrideCount} onClick={onReset}>Reset all corrections ({overrideCount})</button>
+        <label className="search-field"><span className="sr-only">Find a photo</span><Icon name="search" /><input type="search" value={search} onChange={(event) => { setSearch(event.target.value); setVisibleCount(100); }} placeholder="Search filename or folder path…" /></label>
+        <label className="folder-filter"><span className="sr-only">Filter by folder</span><select value={folder} onChange={(event) => onSelectFolder(event.target.value)}><option value="">All folders ({groups.length})</option>{groups.map((group) => <option key={group.name} value={group.name}>{group.name} · {group.files.length} photos</option>)}</select></label>
+        <button type="button" className="secondary reset-button" disabled={disabled || !overrideCount} onClick={onReset}><Icon name="reset" />Reset corrections ({overrideCount})</button>
       </div>
-      {!filteredItems.length && <p className="empty-state">No photos match this search.</p>}
+      <div className="review-filters" role="group" aria-label="Filter photos by review status">{filters.map((filter) => <button type="button" key={filter.id} aria-pressed={reviewFilter === filter.id} onClick={() => { setReviewFilter(filter.id); setVisibleCount(100); }}>{filter.label}<span>{inFolder.filter(filter.matches).length}</span></button>)}</div>
+      <details className="inline-help"><summary>Folder decisions & movement guide</summary><p>Use “Start folder here (keep photo)” for the first inspection photo of a new pass. Use the marker option for a downward marker with incorrect recorded pitch. “Keep in current folder” prevents a split at that photo. Corrections update folders and the ZIP immediately.</p><p>Skipped markers stay visible here. Corrections are kept when you re-analyze, and cleared when you choose new files or reload the page.</p><p>Sideways movement is a GPS estimate from the previous photo with a valid capture time, including skipped markers. Left/right is relative to that photo’s camera heading. Search and display order do not change the comparison.</p></details>
+      {!filteredItems.length && <div className="empty-state"><strong>No photos match these filters.</strong><p>Try a different filename, folder or review status.</p><button type="button" className="secondary" onClick={resetFilters}>Clear filters</button></div>}
       <div className="preview-grid review-grid">
         {visibleItems.map((item) => (
-          <article key={item.id} className="preview-card" aria-label={`Review ${getDisplayPath(item.file)}`}>
-            <ImageThumbnail file={item.file} />
-            <strong>{getFileName(item.file)}</strong>
-            {getDisplayPath(item.file) !== getFileName(item.file) && <span>{getDisplayPath(item.file)}</span>}
-            <span>{item.groupName ?? 'Skipped marker — excluded from ZIP'}</span>
-            <span>Recorded pitch: {formatPitch(item.pitch)} • altitude {formatAltitude(item.altitude)}</span>
-            <SidewaysMovement movement={movements.get(item.file)} />
-            {item.startReason && <span>Folder start: {item.startReason}</span>}
-            <label>Folder decision
-              <select aria-label={`Folder decision for ${getDisplayPath(item.file)}`} value={item.markerOverride} disabled={disabled} onChange={(event) => onOverride(item.file, event.target.value)}>
-                <option value="auto">Automatic</option>
-                <option value="split">Start folder here (keep photo)</option>
-                <option value="marker">Start folder here (marker)</option>
-                <option value="normal">Keep in current folder (inspection photo)</option>
-              </select>
-            </label>
-            {item.markerOverride !== 'auto' && <span className="manual-label">Manual correction • select Automatic to undo</span>}
+          <article key={item.id} className={`preview-card ${item.startReason ? 'folder-start' : ''} ${!item.groupName ? 'skipped-card' : ''}`} aria-label={`Review ${getDisplayPath(item.file)}`}>
+            <div className="photo-heading"><strong title={getDisplayPath(item.file)}>{getFileName(item.file)}</strong><span className={`photo-badge ${item.startReason ? 'start-badge' : ''}`}>{!item.groupName ? 'Skipped' : item.startReason ? 'Folder start' : 'Inspection'}</span></div>
+            <ImageThumbnail file={item.file} onOpen={canPreviewInBrowser(item.file) ? (event) => { viewerTriggerRef.current = event.currentTarget; setViewerFile(item.file); } : undefined} />
+            <div className="photo-body">
+              <span className="photo-folder"><Icon name="folder" />{item.groupName ?? 'Marker excluded from ZIP'}</span>
+              {getDisplayPath(item.file) !== getFileName(item.file) && <span className="source-path" title={getDisplayPath(item.file)}>{getDisplayPath(item.file)}</span>}
+              <div className="photo-telemetry"><div><span>Recorded pitch</span><strong>{formatPitch(item.pitch)}</strong></div><div><span>Altitude</span><strong>{formatAltitude(item.altitude)}</strong></div></div>
+              <div className="movement-block"><SidewaysMovement movement={movements.get(item.file)} /></div>
+              {item.startReason && <span className="start-reason"><Icon name="marker" />{startReasonLabel(item.startReason)}</span>}
+              <label>Folder decision<select aria-label={`Folder decision for ${getDisplayPath(item.file)}`} value={item.markerOverride} disabled={disabled} onChange={(event) => onOverride(item.file, event.target.value)}>
+                <option value="auto">Automatic</option><option value="split">Start folder here (keep photo)</option><option value="marker">Start folder here (marker)</option><option value="normal">Keep in current folder (inspection photo)</option>
+              </select></label>
+              {item.markerOverride !== 'auto' && <span className="manual-label"><Icon name="check" />Manual correction · Automatic to undo</span>}
+            </div>
           </article>
         ))}
       </div>
-      {visibleCount < filteredItems.length && <div className="preview-controls">
-        <button type="button" onClick={() => setVisibleCount(Math.min(visibleCount + 100, filteredItems.length))}>Show next 100</button>
-        <button type="button" className="secondary" onClick={() => setVisibleCount(filteredItems.length)}>Show all</button>
-      </div>}
+      {visibleCount < filteredItems.length && <div className="preview-controls"><span>{filteredItems.length - visibleItems.length} more photos</span><button type="button" className="secondary" onClick={() => setVisibleCount(Math.min(visibleCount + 100, filteredItems.length))}>Show next 100</button><button type="button" className="secondary" onClick={() => setVisibleCount(filteredItems.length)}>Show all</button></div>}
+      {viewerFile && <PhotoViewer file={viewerFile} onClose={() => setViewerFile(null)} returnFocusRef={viewerTriggerRef}
+        onPrevious={viewerIndex > 0 ? () => setViewerFile(filteredItems[viewerIndex - 1].file) : undefined}
+        onNext={viewerIndex >= 0 && viewerIndex < filteredItems.length - 1 ? () => setViewerFile(filteredItems[viewerIndex + 1].file) : undefined} />}
     </section>
   );
 }
@@ -698,7 +668,7 @@ function SidewaysMovement({ movement }) {
   </>;
 }
 
-function ImageThumbnail({ file }) {
+function ImageThumbnail({ file, onOpen }) {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [hasPreviewError, setHasPreviewError] = useState(false);
 
@@ -719,10 +689,10 @@ function ImageThumbnail({ file }) {
   }, [file]);
 
   if (!previewUrl || hasPreviewError) {
-    return <div className="thumb thumb-fallback">IMG</div>;
+    return <div className="thumb thumb-fallback">{canPreviewInBrowser(file) ? 'Preview unavailable' : 'Preview not supported'}</div>;
   }
 
-  return (
+  const thumbnail = (
     <img
       className="thumb"
       src={previewUrl}
@@ -731,4 +701,5 @@ function ImageThumbnail({ file }) {
       onError={() => setHasPreviewError(true)}
     />
   );
+  return onOpen ? <button type="button" className="thumbnail-button" onClick={onOpen} aria-label={`Expand ${getFileName(file)}`}>{thumbnail}<span className="thumb-open"><Icon name="expand" />Expand photo</span></button> : thumbnail;
 }
