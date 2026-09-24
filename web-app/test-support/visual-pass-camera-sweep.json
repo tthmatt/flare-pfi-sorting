@@ -1,0 +1,59 @@
+{
+  "description": "Operator-confirmed boundary before 0024 during reversed camera tilt sweeps at steady height. Relative positions and times only; no original photos, locations, absolute capture dates or camera identifiers.",
+  "rows": [
+    {
+      "id": "0020",
+      "seconds": 0.0,
+      "north": 0.0,
+      "east": 0.0,
+      "altitude": 4.2,
+      "pitch": 0,
+      "gimbalYaw": 131
+    },
+    {
+      "id": "0021",
+      "seconds": 2.0,
+      "north": -0.0528,
+      "east": 0.0734,
+      "altitude": 4.2,
+      "pitch": -19.5,
+      "gimbalYaw": 131
+    },
+    {
+      "id": "0022",
+      "seconds": 4.0,
+      "north": -0.0105,
+      "east": 0.0551,
+      "altitude": 4.2,
+      "pitch": -40.4,
+      "gimbalYaw": 131
+    },
+    {
+      "id": "0024",
+      "seconds": 16.0,
+      "north": -0.5854,
+      "east": -1.2087,
+      "altitude": 4.2,
+      "pitch": -34.1,
+      "gimbalYaw": 131
+    },
+    {
+      "id": "0025",
+      "seconds": 21.0,
+      "north": -0.6161,
+      "east": -1.0823,
+      "altitude": 4.2,
+      "pitch": -19.2,
+      "gimbalYaw": 130
+    },
+    {
+      "id": "0026",
+      "seconds": 26.0,
+      "north": -0.6924,
+      "east": -1.1349,
+      "altitude": 4.2,
+      "pitch": 0,
+      "gimbalYaw": 128.9
+    }
+  ]
+}

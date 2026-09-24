@@ -8,7 +8,7 @@ export async function analyzeVisualPasses(records, settings, { signal, onProgres
   if (!selected.length) return result;
   if (signal?.aborted) throw new DOMException('Visual analysis cancelled.', 'AbortError');
   return new Promise((resolve, reject) => {
-    let worker; let watchdog;
+    let worker; let watchdog; let checked = 0;
     const cleanup = () => { clearTimeout(watchdog); worker?.terminate(); signal?.removeEventListener('abort', abort); };
     const fail = (error) => { cleanup(); reject(error); };
     const abort = () => fail(new DOMException('Visual analysis cancelled.', 'AbortError'));
@@ -22,12 +22,17 @@ export async function analyzeVisualPasses(records, settings, { signal, onProgres
       worker.onerror = () => fail(new Error('Visual analysis is unavailable in this browser. Use “Start folder here (keep photo)” in the photo review.'));
       worker.onmessage = ({ data }) => {
         const candidate = selected[data.index];
-        result.proposals.push({ ...candidate, file: records[candidate.boundaryIndex].file,
-          beforeFile: records[candidate.beforeIndex].file,
-          comparisonBeforeFile: records[candidate.comparisonBeforeIndex]?.file ?? null,
-          comparisonAfterFile: records[candidate.comparisonAfterIndex]?.file ?? null, visual: data.visual });
-        onProgress?.(result.proposals.length, selected.length);
-        if (result.proposals.length === selected.length) { cleanup(); resolve(result); }
+        if (candidate.requiresVisualSupport && !data.visual.supported) {
+          result.reasons['camera-sweep-visual-inconclusive'] = (result.reasons['camera-sweep-visual-inconclusive'] ?? 0) + 1;
+        } else {
+          result.proposals.push({ ...candidate, file: records[candidate.boundaryIndex].file,
+            beforeFile: records[candidate.beforeIndex].file,
+            comparisonBeforeFile: records[candidate.comparisonBeforeIndex]?.file ?? null,
+            comparisonAfterFile: records[candidate.comparisonAfterIndex]?.file ?? null, visual: data.visual });
+        }
+        checked += 1;
+        onProgress?.(checked, selected.length);
+        if (checked === selected.length) { cleanup(); resolve(result); }
         else armWatchdog();
       };
       armWatchdog();

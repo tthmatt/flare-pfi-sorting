@@ -12,8 +12,12 @@ import { analysisProgress, analysisSummary, logStatus } from './telemetry.js';
 import { analyzeVisualPasses } from './visualAnalysis.js';
 import { buildPreviewMovements } from './previewMovement.js';
 
-const APP_VERSION = '0.4.3';
+const APP_VERSION = '0.4.4';
 const CHANGELOG = [
+  {
+    version: '0.4.4', date: '2026-09-24',
+    changes: ['Detect reversed camera sweeps at steady height after a persistent sideways move, with image confirmation required for these suggestions.'],
+  },
   {
     version: '0.4.3', date: '2026-09-24',
     changes: ['Show GPS-based sideways movement and left/right direction on image previews, with the previous capture-time photo identified.'],
@@ -236,7 +240,7 @@ export default function App() {
     const controller = new AbortController();
     visualController.current = controller;
     setIsWorking(true); setVisualWorking(true); setVisualResult(null);
-    setStatus('Looking for sideways moves between vertical passes...');
+    setStatus('Looking for sideways moves between inspection columns...');
     try {
       const result = await analyzeVisualPasses(captureOrderedAnalyses, settings, {
         signal: controller.signal,
@@ -427,6 +431,7 @@ function VisualPassPanel({ result, working, disabled, analyses, movements, overr
   const [applied, setApplied] = useState(() => new Map());
   useEffect(() => { setActive(0); setDismissed(new Set()); setChosen(null); setApplied(new Map()); }, [result]);
   const proposal = result?.proposals[Math.min(active, result.proposals.length - 1)];
+  const unconfirmedSweeps = result?.reasons['camera-sweep-visual-inconclusive'] ?? 0;
   const start = proposal ? Math.max(0, Math.min(proposal.boundaryIndex - 2, proposal.comparisonBeforeIndex ?? proposal.boundaryIndex)) : 0;
   const end = proposal ? Math.max(proposal.boundaryIndex + 3, (proposal.comparisonAfterIndex ?? proposal.boundaryIndex) + 1) : 0;
   const window = proposal ? analyses.slice(start, end) : [];
@@ -442,18 +447,20 @@ function VisualPassPanel({ result, working, disabled, analyses, movements, overr
   };
   return <section className="panel visual-pass-panel" aria-label="Visual pass suggestions">
     <div className="panel-heading"><h2>Visual pass suggestions</h2><span>Experimental</span></div>
-    <p className="review-help">One folder per vertical up/down pass. Check sideways movement using photos, GPS, camera direction and altitude. Photos stay on this device. Each suggestion needs your review.</p>
+    <p className="review-help">One folder per inspection column, whether the drone flies up/down or the camera tilts at steady height. Check sideways movement using photos, GPS, camera direction and altitude. Photos stay on this device. Each suggestion needs your review.</p>
     <p className="review-help">This first version needs overlapping JPG/PNG photos and reliable capture time, GPS, gimbal yaw, pitch and altitude. Repeated windows, large angle changes or missing metadata can leave passes undetected. Review the full flight before export.</p>
     <div className="button-grid">
       <button type="button" onClick={onAnalyze} disabled={disabled}>Find pass boundaries</button>
       {working && <button type="button" className="secondary" onClick={onCancel}>Cancel visual analysis</button>}
     </div>
     {result && !result.proposals.length && <p className="empty-state">No supported transition candidate was found. This does not mean the flight contains only one pass. Use “Start folder here (keep photo)” in Review photos for missed boundaries.</p>}
+    {unconfirmedSweeps > 0 && <p>{unconfirmedSweeps} potential camera sweep {unconfirmedSweeps === 1 ? 'transition lacked' : 'transitions lacked'} supporting image matches and {unconfirmedSweeps === 1 ? 'was' : 'were'} not suggested. Review those boundaries manually.</p>}
     {result?.unchecked > 0 && <p role="status">{result.unchecked} further candidates were not checked because this review is limited to 200. Review those photos manually.</p>}
     {proposal && <article className="proposal-item">
       <p><strong>Suggestion {active + 1} of {result.proposals.length}</strong> · {accepted ? 'Accepted' : dismissed.has(proposal.file) ? 'Dismissed' : 'Needs review'}</p>
       <strong>Start next folder at {getFileName(proposal.file)}</strong>
-      <p>{proposal.priorDirection ? `${proposal.priorDirection} → ${proposal.nextDirection} evidence` : `${proposal.nextDirection === 'up' ? 'Ascent' : 'Descent'} after sideways move`} · sideways GPS shift about {Math.abs(proposal.lateralMeters).toFixed(1)} m · altitude change {proposal.altitudeDelta.toFixed(1)} m.</p>
+      <p>{proposal.passEvidence === 'camera-sweep' ? `Camera sweep ${proposal.priorDirection} → ${proposal.nextDirection}` : proposal.priorDirection ? `${proposal.priorDirection} → ${proposal.nextDirection} evidence` : `${proposal.nextDirection === 'up' ? 'Ascent' : 'Descent'} after sideways move`} · sideways GPS shift about {Math.abs(proposal.lateralMeters).toFixed(1)} m · altitude change {proposal.altitudeDelta.toFixed(1)} m.</p>
+      {proposal.passEvidence === 'camera-sweep' && <p><strong>Camera sweep at steady height.</strong> This suggestion uses reversed camera tilts, stable GPS positions and supporting image matches. The drone does not need to climb or descend.</p>}
       {proposal.passEvidence === 'partial' && <p><strong>Limited altitude evidence.</strong> Nearby photos do not show a complete preceding vertical pass. Check that the sideways move starts a new inspection column before accepting.</p>}
       {proposal.comparisonBeforeFile && (proposal.comparisonBeforeIndex !== proposal.beforeIndex || proposal.comparisonAfterIndex !== proposal.boundaryIndex)
         && <p>Similar-angle photos used for comparison: {getFileName(proposal.comparisonBeforeFile)} and {getFileName(proposal.comparisonAfterFile)}. The suggested folder start remains {getFileName(proposal.file)}.</p>}
