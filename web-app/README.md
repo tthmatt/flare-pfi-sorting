@@ -1,6 +1,6 @@
 # Drone Image Sorter Web App
 
-**Current version:** 0.3.6
+**Current version:** 0.3.7
 
 Browser-based version of the PFI drone inspection image sorter for deployment on Vercel or any static hosting provider.
 
@@ -14,6 +14,33 @@ Browser-based version of the PFI drone inspection image sorter for deployment on
 - Generates a ZIP download containing the sorted folder structure and a `sort_report.csv` audit file.
 
 Images are not uploaded to a server by this app.
+
+## Correcting unreliable gimbal pitch (including Mavic 2)
+
+A downward-facing photo may contain a recorded gimbal pitch of `0°`. The app
+cannot recover the real angle from incorrect metadata. Review the photos after
+analysis and use **Folder decision → Start folder here (marker)** on a missed
+marker. An explicit correction starts a folder even beside another marker.
+
+- **Automatic** restores the normal pitch and altitude rules for that photo.
+- **Keep as inspection photo** keeps the photo in the output and prevents an
+  automatic or inferred split at that photo.
+- Corrections update folder previews, CSV reports, and the downloaded ZIP immediately.
+- **Skip pitched-down marker photos in output** also skips manually marked photos;
+  the next inspection photo starts the folder. Skipped markers remain in the review
+  so you can undo mistakes, including when every photo was skipped.
+- Search by filename or folder path to find a photo in a large selection.
+- Corrections survive re-analysis of the same selection, but choosing new files
+  or reloading the page clears them. **Reset all corrections** restores automation.
+- Original image bytes and recorded pitch are unchanged. CSV reports include
+  `manual-marker` folder-start reasons and a `marker_override` column.
+
+The browser now reads binary EXIF capture dates from JPEG and TIFF/DNG metadata
+within its existing 2 MiB read limit. It prefers EXIF DateTimeOriginal, then XMP
+DateTimeOriginal, then EXIF DateTimeDigitized, then XMP CreateDate. Date-only DJI
+placeholders such as `1970-01-01` are not valid capture times. EXIF timezone offsets
+are honored; timestamps without an offset retain the existing UTC sorting convention.
+This change applies to the browser app; the Python CLI is unchanged.
 
 ## Local development
 
@@ -44,6 +71,14 @@ Import this GitHub repository into Vercel and use these settings:
 
 
 ## Changelog
+
+### 0.3.7 - 2026-09-24
+
+- Added per-photo, reversible marker corrections that immediately update grouping and exports.
+- Kept skipped markers reviewable, added filename search, and preserved corrections across re-analysis.
+- Read actual EXIF capture times instead of DJI's date-only XMP placeholder.
+- Respect manual marker corrections in optional altitude inference and GPS proposal suppression.
+- Fixed repeated automatic splits in runs of three or more consecutive marker photos.
 
 ### 0.3.6 - 2026-08-11
 

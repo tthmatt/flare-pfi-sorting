@@ -2,10 +2,10 @@ import JSZip from 'jszip';
 import { getDisplayPath, getFileName, safePathPart } from './files.js';
 
 export function makeCsvReport(groups) {
-  const rows = [['folder', 'file', 'pitch', 'altitude', 'capture_time', 'starts_new_folder', 'start_reason', 'size_bytes', 'error']];
+  const rows = [['folder', 'file', 'pitch', 'altitude', 'capture_time', 'starts_new_folder', 'start_reason', 'size_bytes', 'error', 'marker_override']];
   for (const group of groups) for (const item of group.files) rows.push([
     group.name, getDisplayPath(item.file), item.pitch ?? '', item.altitude ?? '', item.captureDate ? item.captureDate.toISOString() : '',
-    item.startsNewFolder ? 'yes' : 'no', item.startReason ?? '', item.file.size, item.error ?? '',
+    item.startsNewFolder ? 'yes' : 'no', item.startReason ?? '', item.file.size, item.error ?? '', item.markerOverride ?? 'auto',
   ]);
   return rows.map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\n');
 }

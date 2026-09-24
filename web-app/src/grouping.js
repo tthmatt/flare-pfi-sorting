@@ -2,10 +2,9 @@ import { isImageFile, safePathPart } from './files.js';
 import { readImageMetadata } from './metadata.js';
 import { sortAnalyses } from './ordering.js';
 import { analyzeGpsTurns } from './turnDetection.js';
+import { isMarkerImage } from './markers.js';
 
-export function isMarkerPitch(pitch, markerPitch, tolerance) {
-  return pitch !== null && pitch !== undefined && Math.abs(Math.abs(pitch) - Math.abs(markerPitch)) <= tolerance;
-}
+export { isMarkerPitch } from './markers.js';
 
 export function buildGroups(analyses, settings) {
   const ordered = sortAnalyses(analyses, settings.inferAltitudeTurns ? 'capture' : settings.sortBy);
@@ -14,24 +13,27 @@ export function buildGroups(analyses, settings) {
   let pendingNewGroup = false;
   let pendingStartReason = null;
   let skippedMarkerCount = 0;
-  const pitchStarts = ordered.map((item) => isMarkerPitch(item.pitch, settings.markerPitch, settings.tolerance));
-  for (let index = 1; index < pitchStarts.length; index += 1) {
-    if (pitchStarts[index] && pitchStarts[index - 1]) pitchStarts[index] = false;
-  }
+  const markers = ordered.map((item) => isMarkerImage(item, settings));
+  // Explicit folder starts take priority. Automatic markers in one consecutive
+  // run produce only one split (compare markers, not the mutated starts array).
+  const pitchStarts = markers.map((marker, index) => marker
+    && (ordered[index].markerOverride === 'marker' || index === 0 || !markers[index - 1]));
   const { reversalStarts, horizontalStarts } = settings.inferAltitudeTurns
     ? inferAltitudeStarts(ordered, pitchStarts, settings)
     : { reversalStarts: new Set(), horizontalStarts: new Set() };
 
   for (let index = 0; index < ordered.length; index += 1) {
     const item = ordered[index];
-    const marker = isMarkerPitch(item.pitch, settings.markerPitch, settings.tolerance);
-    let startReason = pitchStarts[index] ? 'pitched-down' : horizontalStarts.has(index) ? 'horizontal-traverse' : reversalStarts.has(index) ? 'altitude-reversal' : null;
+    const marker = markers[index];
+    let startReason = item.markerOverride === 'normal' ? null
+      : pitchStarts[index] ? (item.markerOverride === 'marker' ? 'manual-marker' : 'pitched-down')
+        : horizontalStarts.has(index) ? 'horizontal-traverse' : reversalStarts.has(index) ? 'altitude-reversal' : null;
     let startsNewFolder = startReason !== null;
     if (settings.skipMarkers && marker) {
       skippedMarkerCount += 1;
       if (pitchStarts[index]) {
         pendingNewGroup = true;
-        pendingStartReason = 'pitched-down';
+        pendingStartReason = startReason;
       }
       continue;
     }

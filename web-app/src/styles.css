@@ -188,6 +188,16 @@ h2 {
   top: 20px;
 }
 
+.controls fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.review-help { color: var(--muted); margin-top: 14px; line-height: 1.5; }
+.review-toolbar { display: flex; align-items: end; gap: 16px; flex-wrap: wrap; }
+.review-toolbar label { flex: 1 1 240px; }
+.review-toolbar label, .preview-card label { display: grid; gap: 6px; font-size: .9rem; }
+.review-toolbar input, .preview-card select { border: 1px solid var(--line); border-radius: 8px; padding: 10px; width: 100%; min-width: 0; background: white; color: var(--ink); }
+.preview-grid.review-grid { grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); }
+.review-grid .thumb { height: 160px; object-fit: contain; }
+.preview-card .manual-label { color: var(--ink); font-weight: 700; }
+
 .controls h2 {
   border-top: 1px solid #edf1f7;
   margin-top: 22px;
@@ -237,6 +247,7 @@ select {
 .content {
   display: grid;
   gap: 20px;
+  min-width: 0;
 }
 
 .drop-zone {
@@ -305,6 +316,7 @@ select {
 
 .panel {
   padding: 18px;
+  min-width: 0;
 }
 
 .panel-heading {

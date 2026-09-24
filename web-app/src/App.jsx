@@ -1,14 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Analytics } from '@vercel/analytics/react';
 import flareLogo from './assets/flare-dynamics-logo.svg';
-import { analyzeFiles } from './grouping.js';
+import { analyzeFiles, buildGroups } from './grouping.js';
+import { sortAnalyses } from './ordering.js';
+import { analyzeGpsTurns } from './turnDetection.js';
+import { buildReviewItems } from './review.js';
 import { canPreviewInBrowser, getDisplayPath, getFileName, isImageFile, safePathPart } from './files.js';
 import { downloadBlob, makeZip } from './reports.js';
 import { createCalibrationReport } from './calibration.js';
 import { analysisProgress, analysisSummary, logStatus } from './telemetry.js';
 
-const APP_VERSION = '0.3.6';
+const APP_VERSION = '0.3.7';
 const CHANGELOG = [
+  {
+    version: '0.3.7', date: '2026-09-24',
+    changes: ['Added reversible folder-start corrections for photos with unreliable gimbal pitch, including skipped markers.', 'Read original EXIF capture times before DJI placeholder dates.'],
+  },
   {
     version: '0.3.6', date: '2026-08-11',
     changes: ['Hardened capture-order GPS evidence and transition-wide marker suppression.', 'Added a bounded, local-only calibration reviewer and redacted JSON report.'],
@@ -99,13 +106,10 @@ export default function App() {
   const folderInputRef = useRef(null);
   const fileInputRef = useRef(null);
   const [files, setFiles] = useState([]);
-  const [groups, setGroups] = useState([]);
   const [analyses, setAnalyses] = useState([]);
-  const [captureOrderedAnalyses, setCaptureOrderedAnalyses] = useState([]);
+  const [markerOverrides, setMarkerOverrides] = useState(() => new Map());
+  const [elapsedMs, setElapsedMs] = useState(0);
   const [calibrationKey, setCalibrationKey] = useState(0);
-  const [skippedMarkerCount, setSkippedMarkerCount] = useState(0);
-  const [turnCandidates, setTurnCandidates] = useState([]);
-  const [turnReasonCounts, setTurnReasonCounts] = useState({});
   const [status, setStatus] = useState('Choose a folder or images to begin.');
   const [isWorking, setIsWorking] = useState(false);
   const [settings, setSettings] = useState({
@@ -133,7 +137,12 @@ export default function App() {
 
   const imageFiles = useMemo(() => files.filter(isImageFile), [files]);
   const totalSize = useMemo(() => imageFiles.reduce((sum, file) => sum + file.size, 0), [imageFiles]);
-  const unknownPitchCount = useMemo(() => groups.flatMap((group) => group.files).filter((item) => item.pitch === null).length, [groups]);
+  const reviewedAnalyses = useMemo(() => analyses.map((item) => ({ ...item, markerOverride: markerOverrides.get(item.file) ?? 'auto' })), [analyses, markerOverrides]);
+  const { groups, skippedMarkerCount } = useMemo(() => buildGroups(reviewedAnalyses, settings), [reviewedAnalyses, settings]);
+  const captureOrderedAnalyses = useMemo(() => sortAnalyses(reviewedAnalyses, 'capture'), [reviewedAnalyses]);
+  const { proposals: turnCandidates, reasonCounts: turnReasonCounts } = useMemo(() => settings.proposeGpsTurns
+    ? analyzeGpsTurns(captureOrderedAnalyses, settings) : { proposals: [], reasonCounts: {} }, [captureOrderedAnalyses, settings]);
+  const unknownPitchCount = useMemo(() => analyses.filter((item) => item.pitch === null).length, [analyses]);
 
   useEffect(() => {
     logStatus(status);
@@ -145,17 +154,32 @@ export default function App() {
   }
 
   function handleFileList(fileList) {
+    if (isWorking) return;
     const selected = Array.from(fileList || []);
     setFiles(selected);
-    setGroups([]);
     setAnalyses([]);
-    setCaptureOrderedAnalyses([]);
+    setMarkerOverrides(new Map());
+    setElapsedMs(0);
     setCalibrationKey((key) => key + 1);
-    setSkippedMarkerCount(0);
-    setTurnCandidates([]);
-    setTurnReasonCounts({});
     const imageCount = selected.filter(isImageFile).length;
     setStatus(`${imageCount} supported image${imageCount === 1 ? '' : 's'} selected.`);
+  }
+
+  function setMarkerOverride(file, mode) {
+    setMarkerOverrides((current) => {
+      const next = new Map(current);
+      if (mode === 'auto') next.delete(file);
+      else next.set(file, mode);
+      return next;
+    });
+    setCalibrationKey((key) => key + 1);
+    setStatus('Correction applied. Folder preview and ZIP are updated.');
+  }
+
+  function resetMarkerOverrides() {
+    setMarkerOverrides(new Map());
+    setCalibrationKey((key) => key + 1);
+    setStatus('Corrections reset. Automatic sorting restored.');
   }
 
   async function handleAnalyze() {
@@ -164,20 +188,15 @@ export default function App() {
       return;
     }
     setIsWorking(true);
-    setGroups([]);
+    setAnalyses([]);
     setCalibrationKey((key) => key + 1);
-    setSkippedMarkerCount(0);
     try {
       const result = await analyzeFiles(imageFiles, settings, (done, total) => {
         setStatus(analysisProgress(done, total));
       });
-      setGroups(result.groups);
       setAnalyses(result.analyses);
-      setCaptureOrderedAnalyses(result.captureOrderedAnalyses);
-      setSkippedMarkerCount(result.skippedMarkerCount);
-      setTurnCandidates(result.turnCandidates);
-      setTurnReasonCounts(result.turnCandidateReasonCounts);
-      setStatus(analysisSummary(result.groups, result.skippedMarkerCount, result.elapsedMs, result.analyses.length));
+      setElapsedMs(result.elapsedMs);
+      setStatus('Analysis complete. Review the photos and correct any missed markers below.');
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
     } finally {
@@ -228,6 +247,7 @@ export default function App() {
 
       <div className="layout">
         <aside className="panel controls">
+          <fieldset disabled={isWorking}>
           <h2>Input</h2>
           <div className="button-grid">
             <button type="button" onClick={() => folderInputRef.current?.click()} disabled={isWorking}>Folder</button>
@@ -283,8 +303,11 @@ export default function App() {
           </label>
 
           <h2>Output</h2>
-          <button type="button" onClick={handleAnalyze} disabled={isWorking || !imageFiles.length}>Analyze images</button>
-          <button type="button" className="download" onClick={handleDownloadZip} disabled={isWorking || !groups.length}>Download ZIP</button>
+          <div className="button-grid">
+            <button type="button" onClick={handleAnalyze} disabled={isWorking || !imageFiles.length}>Analyze images</button>
+            <button type="button" className="download" onClick={handleDownloadZip} disabled={isWorking || !groups.length}>Download ZIP</button>
+          </div>
+          </fieldset>
         </aside>
 
         <section className="content">
@@ -294,6 +317,7 @@ export default function App() {
               <h2>Inspection set</h2>
               <p>{settings.skipMarkers ? `Every image near ${settings.markerPitch}° starts a new output folder, but marker photos are skipped in the ZIP.` : `Every image near ${settings.markerPitch}° starts a new output folder. The marker image is placed at the beginning of that new folder. If enabled, a sustained altitude reversal or confirmed horizontal traverse can start a fallback folder when a marker is missed.`}</p>
               <p className="status">{status}</p>
+              {analyses.length > 0 && <p role="status">{analysisSummary(groups, skippedMarkerCount, elapsedMs, analyses.length)}</p>}
             </div>
           </section>
 
@@ -310,12 +334,14 @@ export default function App() {
           <section className="panel">
             <div className="panel-heading">
               <h2>Folders</h2>
-              <span>{groups.length ? 'Ready' : 'Waiting'}</span>
+              <span>{groups.length ? 'Ready' : analyses.length ? 'No output' : 'Waiting'}</span>
             </div>
-            {groups.length ? <FolderTable groups={groups} /> : <EmptyState />}
+            {groups.length ? <FolderTable groups={groups} /> : analyses.length
+              ? <p className="empty-state">All photos are skipped markers. Review their folder decisions below or turn off “Skip pitched-down marker photos in output”.</p>
+              : <EmptyState />}
           </section>
 
-          {groups.length > 0 && <Preview groups={groups} />}
+          {analyses.length > 0 && <Preview analyses={reviewedAnalyses} groups={groups} settings={settings} onOverride={setMarkerOverride} onReset={resetMarkerOverrides} overrideCount={markerOverrides.size} disabled={isWorking} />}
 
           <Changelog />
         </section>
@@ -448,31 +474,48 @@ function FolderTable({ groups }) {
   );
 }
 
-function Preview({ groups }) {
-  const items = groups.flatMap((group) => group.files.map((item) => ({ ...item, groupName: group.name })));
-  const [previewLimit, setPreviewLimit] = useState({ groups, count: 100 });
-  const visibleCount = previewLimit.groups === groups ? previewLimit.count : 100;
-  useEffect(() => setPreviewLimit({ groups, count: 100 }), [groups]);
-  const visibleItems = items.slice(0, visibleCount);
+function Preview({ analyses, groups, settings, onOverride, onReset, overrideCount, disabled }) {
+  const [visibleCount, setVisibleCount] = useState(100);
+  const [search, setSearch] = useState('');
+  const items = useMemo(() => buildReviewItems(analyses, groups, settings), [analyses, groups, settings]);
+  const filteredItems = items.filter((item) => getDisplayPath(item.file).toLowerCase().includes(search.trim().toLowerCase()));
+  const visibleItems = filteredItems.slice(0, visibleCount);
   return (
     <section className="panel">
       <div className="panel-heading">
-        <h2>Preview</h2>
-        <span>{visibleItems.length} of {items.length} shown</span>
+        <h2>Review photos</h2>
+        <span>{visibleItems.length} of {filteredItems.length} shown</span>
       </div>
-      <div className="preview-grid">
+      <p className="review-help">Some photos record an incorrect pitch, including 0° for a downward view. Use “Start folder here” on a missed marker. Corrections update folders and the ZIP immediately; original photos and recorded angles stay unchanged.</p>
+      <p className="review-help">Skipped markers stay visible here. Corrections are kept when you re-analyze, and cleared when you choose new files or reload the page.</p>
+      <div className="review-toolbar">
+        <label>Find a photo<input type="search" value={search} onChange={(event) => { setSearch(event.target.value); setVisibleCount(100); }} placeholder="Filename or folder path" /></label>
+        <button type="button" className="secondary" disabled={disabled || !overrideCount} onClick={onReset}>Reset all corrections ({overrideCount})</button>
+      </div>
+      {!filteredItems.length && <p className="empty-state">No photos match this search.</p>}
+      <div className="preview-grid review-grid">
         {visibleItems.map((item) => (
-          <article key={`${item.groupName}-${getDisplayPath(item.file)}`} className="preview-card">
+          <article key={item.id} className="preview-card" aria-label={`Review ${getDisplayPath(item.file)}`}>
             <ImageThumbnail file={item.file} />
             <strong>{getFileName(item.file)}</strong>
-            <span>{item.groupName}</span>
-            <span>{formatPitch(item.pitch)} • altitude {formatAltitude(item.altitude)}{item.startReason ? ` • ${item.startReason}` : ''}</span>
+            {getDisplayPath(item.file) !== getFileName(item.file) && <span>{getDisplayPath(item.file)}</span>}
+            <span>{item.groupName ?? 'Skipped marker — excluded from ZIP'}</span>
+            <span>Recorded pitch: {formatPitch(item.pitch)} • altitude {formatAltitude(item.altitude)}</span>
+            {item.startReason && <span>Folder start: {item.startReason}</span>}
+            <label>Folder decision
+              <select aria-label={`Folder decision for ${getDisplayPath(item.file)}`} value={item.markerOverride} disabled={disabled} onChange={(event) => onOverride(item.file, event.target.value)}>
+                <option value="auto">Automatic</option>
+                <option value="marker">Start folder here (marker)</option>
+                <option value="normal">Keep as inspection photo</option>
+              </select>
+            </label>
+            {item.markerOverride !== 'auto' && <span className="manual-label">Manual correction • select Automatic to undo</span>}
           </article>
         ))}
       </div>
-      {visibleCount < items.length && <div className="preview-controls">
-        <button type="button" onClick={() => setPreviewLimit({ groups, count: Math.min(visibleCount + 100, items.length) })}>Show next 100</button>
-        <button type="button" className="secondary" onClick={() => setPreviewLimit({ groups, count: items.length })}>Show all</button>
+      {visibleCount < filteredItems.length && <div className="preview-controls">
+        <button type="button" onClick={() => setVisibleCount(Math.min(visibleCount + 100, filteredItems.length))}>Show next 100</button>
+        <button type="button" className="secondary" onClick={() => setVisibleCount(filteredItems.length)}>Show all</button>
       </div>}
     </section>
   );

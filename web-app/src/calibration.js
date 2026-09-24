@@ -39,6 +39,8 @@ export function createCalibrationReport({ appVersion, settings, analyses, propos
   return {
     schemaVersion: 1, appVersion, detectorSettings: detectorSettings(settings), totalImageCount: analyses.length,
     telemetryCoverageCounts: telemetryCoverage(analyses), rejectionReasonCounts: { ...reasonCounts },
+    markerOverrides: analyses.flatMap((item, index) => ['marker', 'normal'].includes(item.markerOverride)
+      ? [{ index, fileName: item.file?.name ?? '', mode: item.markerOverride }] : []),
     proposals: redactedProposals,
     manuallyRecordedMissedBoundaries: missedBoundaries.map(({ index, fileName }) => ({ boundaryIndex: index, boundaryFile: fileName })),
     reviewComplete: Boolean(fullFlightReviewed && everyProposalReviewed), exportedAt: exportedAt.toISOString(),
