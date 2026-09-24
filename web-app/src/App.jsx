@@ -12,8 +12,12 @@ import { analysisProgress, analysisSummary, logStatus } from './telemetry.js';
 import { analyzeVisualPasses } from './visualAnalysis.js';
 import { buildPreviewMovements } from './previewMovement.js';
 
-const APP_VERSION = '0.4.5';
+const APP_VERSION = '0.4.6';
 const CHANGELOG = [
+  {
+    version: '0.4.6', date: '2026-09-24',
+    changes: ['Detect stable, opposing vertical passes despite a moderate camera-heading change or height offset between columns.', 'Explain the heading change and retain inconclusive image checks when camera views do not align.'],
+  },
   {
     version: '0.4.5', date: '2026-09-24',
     changes: ['Detect a sideways move from a vertical flight into a tilted return pass, including two inspection photos ending at a separate marker.', 'Keep incompatible camera views explicitly inconclusive and preserve the later marker boundary.'],
@@ -452,7 +456,7 @@ function VisualPassPanel({ result, working, disabled, analyses, movements, overr
   return <section className="panel visual-pass-panel" aria-label="Visual pass suggestions">
     <div className="panel-heading"><h2>Visual pass suggestions</h2><span>Experimental</span></div>
     <p className="review-help">One folder per inspection column, whether the drone flies up/down or the camera tilts at steady height. Check sideways movement using photos, GPS, camera direction and altitude. Photos stay on this device. Each suggestion needs your review.</p>
-    <p className="review-help">This first version needs overlapping JPG/PNG photos and reliable capture time, GPS, gimbal yaw, pitch and altitude. Repeated windows, large angle changes or missing metadata can leave passes undetected. Review the full flight before export.</p>
+    <p className="review-help">Suggestions use capture time, GPS, gimbal yaw, pitch and altitude. Image checks need overlapping JPG/PNG views at similar angles. Repeated windows, large angle changes or missing metadata can leave passes undetected. Review the full flight before export.</p>
     <div className="button-grid">
       <button type="button" onClick={onAnalyze} disabled={disabled}>Find pass boundaries</button>
       {working && <button type="button" className="secondary" onClick={onCancel}>Cancel visual analysis</button>}
@@ -466,6 +470,7 @@ function VisualPassPanel({ result, working, disabled, analyses, movements, overr
       <p>{proposal.passEvidence === 'camera-sweep' ? `Camera sweep ${proposal.priorDirection} → ${proposal.nextDirection}` : proposal.passEvidence === 'tilted-return' ? `${proposal.priorDirection === 'up' ? 'Ascent' : 'Descent'} → camera tilt ${proposal.nextDirection}` : proposal.priorDirection ? `${proposal.priorDirection} → ${proposal.nextDirection} evidence` : `${proposal.nextDirection === 'up' ? 'Ascent' : 'Descent'} after sideways move`} · sideways GPS shift about {Math.abs(proposal.lateralMeters).toFixed(1)} m · altitude change {proposal.altitudeDelta.toFixed(1)} m.</p>
       {proposal.passEvidence === 'camera-sweep' && <p><strong>Camera sweep at steady height.</strong> This suggestion uses reversed camera tilts, stable GPS positions and supporting image matches. The drone does not need to climb or descend.</p>}
       {proposal.passEvidence === 'tilted-return' && <p><strong>Tilted return pass.</strong> After the sideways move, the camera tilts back along the next column while the drone stays near the same height. Check the photos before accepting; a later marker remains a separate folder boundary.</p>}
+      {proposal.passEvidence === 'changed-viewpoint' && <p><strong>Vertical passes at separate positions.</strong> Both passes show sustained vertical motion and stable GPS positions. Camera heading changes by {proposal.headingChangeDegrees.toFixed(1)}°. Check the proposed folder start before accepting.</p>}
       {proposal.passEvidence === 'partial' && <p><strong>Limited altitude evidence.</strong> Nearby photos do not show a complete preceding vertical pass. Check that the sideways move starts a new inspection column before accepting.</p>}
       {proposal.comparisonBeforeFile && (proposal.comparisonBeforeIndex !== proposal.beforeIndex || proposal.comparisonAfterIndex !== proposal.boundaryIndex)
         && <p>Similar-angle photos used for comparison: {getFileName(proposal.comparisonBeforeFile)} and {getFileName(proposal.comparisonAfterFile)}. The suggested folder start remains {getFileName(proposal.file)}.</p>}

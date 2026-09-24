@@ -1,0 +1,104 @@
+{
+  "description": "Operator-confirmed boundary before 0865 between a descent and ascent with a heading change and small height offset. Relative positions and times only; no original photos, locations, absolute capture dates or camera identifiers.",
+  "rows": [
+    {
+      "id": "0859",
+      "seconds": 0,
+      "north": 0,
+      "east": 0,
+      "altitude": 12.9,
+      "pitch": 0,
+      "gimbalYaw": -163.5
+    },
+    {
+      "id": "0860",
+      "seconds": 16,
+      "north": 0.5792,
+      "east": -0.5947,
+      "altitude": 11.8,
+      "pitch": 0,
+      "gimbalYaw": -145.7
+    },
+    {
+      "id": "0861",
+      "seconds": 21,
+      "north": 0.4782,
+      "east": -0.6205,
+      "altitude": 9,
+      "pitch": 0,
+      "gimbalYaw": -145.7
+    },
+    {
+      "id": "0862",
+      "seconds": 27,
+      "north": 0.7031,
+      "east": -0.4118,
+      "altitude": 6.4,
+      "pitch": 0,
+      "gimbalYaw": -145.7
+    },
+    {
+      "id": "0863",
+      "seconds": 31,
+      "north": 0.7373,
+      "east": -0.3862,
+      "altitude": 4.3,
+      "pitch": 0,
+      "gimbalYaw": -145.7
+    },
+    {
+      "id": "0864",
+      "seconds": 35,
+      "north": 0.6247,
+      "east": -0.5555,
+      "altitude": 4.2,
+      "pitch": -22.4,
+      "gimbalYaw": -146.3
+    },
+    {
+      "id": "0865",
+      "seconds": 68,
+      "north": 5.8456,
+      "east": -9.9803,
+      "altitude": 2,
+      "pitch": 0,
+      "gimbalYaw": 175.3
+    },
+    {
+      "id": "0866",
+      "seconds": 73,
+      "north": 5.8045,
+      "east": -10.0477,
+      "altitude": 4.6,
+      "pitch": 0,
+      "gimbalYaw": 175.3
+    },
+    {
+      "id": "0867",
+      "seconds": 78,
+      "north": 5.7136,
+      "east": -10.216,
+      "altitude": 6.9,
+      "pitch": 0,
+      "gimbalYaw": 175.3
+    },
+    {
+      "id": "0868",
+      "seconds": 86,
+      "north": 6.0479,
+      "east": -10.1184,
+      "altitude": 9.3,
+      "pitch": 0,
+      "gimbalYaw": 175.3
+    },
+    {
+      "id": "0869",
+      "seconds": 90,
+      "north": 6.0332,
+      "east": -10.1803,
+      "altitude": 11.5,
+      "pitch": 0,
+      "gimbalYaw": 175.3
+    }
+  ]
+}

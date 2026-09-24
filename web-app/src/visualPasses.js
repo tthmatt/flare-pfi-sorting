@@ -1,7 +1,8 @@
 import { isMarkerImage } from './markers.js';
 
 const radians = (n) => n * Math.PI / 180;
-const angleDifference = (a, b) => Math.abs(((a - b + 540) % 360 + 360) % 360 - 180);
+const angleDelta = (a, b) => ((b - a + 540) % 360 + 360) % 360 - 180;
+const angleDifference = (a, b) => Math.abs(angleDelta(a, b));
 const hasPosition = (r) => Number.isFinite(r?.latitude) && Math.abs(r.latitude) <= 90
   && Number.isFinite(r.longitude) && Math.abs(r.longitude) <= 180;
 const time = (r) => r.captureDate?.getTime?.() ?? NaN;
@@ -91,6 +92,44 @@ function tiltedReturnEvidence(after, following, settings, lateralMeters) {
   return null;
 }
 
+// A pilot may turn the camera or change height while moving to the next column.
+// Require two complete, stable vertical passes before relaxing the adjacent-view
+// limits. These records remain a review suggestion, not an aligned image match.
+function changedViewpointEvidence(before, after) {
+  if (before.length < 3 || after.length < 3) return null;
+  const direction = (photos) => {
+    if (photos.some((item) => !Number.isFinite(item.pitch) || Math.abs(item.pitch) > 60)) return null;
+    const span = photos.at(-1).altitude - photos[0].altitude;
+    const steps = photos.slice(1).map((item, i) => item.altitude - photos[i].altitude).filter((d) => Math.abs(d) > 0.75);
+    if (Math.abs(span) < 3 || steps.length < 2 || steps.some((d) => Math.sign(d) !== Math.sign(span))) return null;
+    return Math.sign(span);
+  };
+  const priorSign = direction([...before].reverse()); const nextSign = direction(after);
+  if (!priorSign || nextSign !== -priorSign) return null;
+  const heightsBefore = before.map((item) => item.altitude); const heightsAfter = after.map((item) => item.altitude);
+  if (Math.min(Math.max(...heightsBefore), Math.max(...heightsAfter))
+    - Math.max(Math.min(...heightsBefore), Math.min(...heightsAfter)) < 3) return null;
+
+  const previous = before[0]; const next = after[0];
+  const turn = angleDelta(previous.gimbalYaw, next.gimbalYaw);
+  const moves = [previous.gimbalYaw, next.gimbalYaw, previous.gimbalYaw + turn / 2]
+    .map((gimbalYaw) => cameraDisplacement({ ...previous, gimbalYaw }, next));
+  const middle = moves[2];
+  // Lateral in both camera frames, predominantly lateral at their midpoint.
+  // Do not reinterpret a forward approach as sideways just because yaw changed.
+  if (moves.slice(0, 2).some((move) => Math.sign(move.lateral) !== Math.sign(middle.lateral)
+    || Math.abs(move.lateral) < 4 || Math.abs(move.lateral) < Math.abs(move.forward))
+    || Math.abs(middle.lateral) < 2 * Math.abs(middle.forward)) return null;
+  const heightChange = Math.abs(next.altitude - previous.altitude);
+  if (heightChange > 5 || heightChange > Math.abs(middle.lateral) / 2) return null;
+  const drift = (anchor, items) => items.map((item) => {
+    const move = cameraDisplacement(anchor, item); return Math.hypot(move.lateral, move.forward);
+  });
+  const noise = Math.max(...drift(previous, before), ...drift(next, after));
+  if (noise > Math.min(Math.abs(moves[0].lateral), Math.abs(moves[1].lateral)) / 6) return null;
+  return { priorSign, nextSign };
+}
+
 // All indices are capture-order indices. Labels and filenames are never evidence.
 export function findVisualPassCandidates(records, settings = {}) {
   const candidates = []; const reasons = {};
@@ -104,28 +143,39 @@ export function findVisualPassCandidates(records, settings = {}) {
       || !Number.isFinite(previous.pitch) || !Number.isFinite(next.pitch)
       || !Number.isFinite(gap(previous, next))) { reject('missing-metadata'); continue; }
     if (gap(previous, next) <= 0 || gap(previous, next) > 60) { reject('capture-time-gap'); continue; }
-    if (angleDifference(previous.gimbalYaw, next.gimbalYaw) > 8
+    const headingChangeDegrees = angleDifference(previous.gimbalYaw, next.gimbalYaw);
+    const changedViewpoint = headingChangeDegrees > 8 || Math.abs(next.altitude - previous.altitude) > 2;
+    if (headingChangeDegrees > 45
       || Math.max(Math.abs(next.pitch), Math.abs(previous.pitch)) > 60) { reject('camera-rotation'); continue; }
-    // Moves below 2 m may only proceed via the stricter camera-sweep path below.
-    if (Math.abs(movement.lateral) < 1 || Math.abs(movement.lateral) < 2 * Math.abs(movement.forward)
-      || Math.abs(next.altitude - previous.altitude) > 2) { reject('not-level-sideways-movement'); continue; }
+    // Changed viewpoints need a larger move and complete passes on both sides.
+    // Moves below 2 m still require the image-supported camera-sweep path.
+    if (Math.abs(movement.lateral) < (changedViewpoint ? 4 : 1)
+      || (!changedViewpoint && Math.abs(movement.lateral) < 2 * Math.abs(movement.forward))) {
+      reject('not-level-sideways-movement'); continue;
+    }
 
     const before = []; const after = [];
     // Stop at metadata gaps/markers; do not join separate flights or altitude datums.
     for (const [direction, start, target, limit] of [[-1, index - 1, before, 4], [1, index, after, 4]]) {
+      // A turn between passes is allowed only when each pass has its own stable heading.
+      const headingAnchor = changedViewpoint ? records[start] : previous;
       for (let j = start; j >= 0 && j < records.length && target.length < limit; j += direction) {
         const item = records[j]; const neighbor = records[j - direction];
         if (!hasPosition(item) || !sameAltitudeSource(previous, item) || !Number.isFinite(time(item))
-          || !Number.isFinite(item.gimbalYaw) || angleDifference(previous.gimbalYaw, item.gimbalYaw) > 8
+          || !Number.isFinite(item.gimbalYaw) || angleDifference(headingAnchor.gimbalYaw, item.gimbalYaw) > 8
           || isMarkerImage(item, settings)) break;
         if (target.length && (Math.abs(time(item) - time(neighbor)) / 1000 > 60 || time(item) === time(neighbor))) break;
         target.push(item);
       }
     }
     if (before.length < 3 || after.length < 2) { reject('insufficient-surrounding-photos'); continue; }
-    const sweep = cameraSweepEvidence(before, after);
+    const changedView = changedViewpoint ? changedViewpointEvidence(before, after) : null;
+    if (changedViewpoint && !changedView) { reject('no-stable-vertical-columns'); continue; }
+    const sweep = changedViewpoint ? null : cameraSweepEvidence(before, after);
     let priorSign; let nextSign; let passEvidence; let tiltedReturn;
-    if (sweep) {
+    if (changedView) {
+      ({ priorSign, nextSign } = changedView); passEvidence = 'changed-viewpoint';
+    } else if (sweep) {
       ({ priorSign, nextSign } = sweep); passEvidence = 'camera-sweep';
       // Small GPS shifts alone are insufficient: both complete camera sweeps
       // must stay in tight horizontal clusters and later pass the image check.
@@ -169,7 +219,7 @@ export function findVisualPassCandidates(records, settings = {}) {
     candidates.push({ boundaryIndex: index, beforeIndex: index - 1, lateralMeters: movement.lateral,
       forwardMeters: movement.forward, altitudeDelta: next.altitude - previous.altitude,
       priorDirection: priorSign === null ? null : priorSign > 0 ? 'up' : 'down', nextDirection: nextSign > 0 ? 'up' : 'down',
-      passEvidence, requiresVisualSupport: Boolean(sweep),
+      passEvidence, headingChangeDegrees, requiresVisualSupport: Boolean(sweep),
       comparisonBeforeIndex: comparison?.beforeIndex ?? null, comparisonAfterIndex: comparison?.afterIndex ?? null });
   }
   return { candidates, reasons };
