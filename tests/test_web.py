@@ -51,12 +51,8 @@ def test_render_page_contains_no_command_line_workflow():
     assert "infer_altitude_turns" in html
 
 
-def test_react_preview_includes_every_group_file():
-    source = Path("web-app/src/App.jsx").read_text()
-
-    assert "group.files.map((item) => ({ ...item, groupName: group.name }))" in source
-    assert "group.files.slice(0, 6)" not in source
-    assert ")).slice(0, 18)" not in source
+# Preview coverage and signed pitch behavior are exercised in
+# web-app/src/review.test.js rather than assertions about JavaScript source text.
 
 
 def test_react_app_can_skip_marker_images_from_output():
@@ -94,12 +90,6 @@ def test_react_app_records_folder_start_reasons_and_altitude_fallback():
     assert "altitude-reversal" in grouping_source
     assert "makeZip(groups, settings.keepFolderPaths, !settings.removeCsvReport)" in source
     assert "if (includeCsvReport)" in reports_source
-
-
-def test_react_marker_pitch_accepts_positive_and_negative_90():
-    source = Path("web-app/src/grouping.js").read_text()
-
-    assert "Math.abs(Math.abs(pitch) - Math.abs(markerPitch)) <= tolerance" in source
 
 
 def test_react_altitude_inference_requires_sustained_reversal():

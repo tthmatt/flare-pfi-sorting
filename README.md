@@ -2,7 +2,12 @@ https://flare-pfi-sorting.vercel.app/
 
 # Flare PFI Sorting
 
-**Current version:** 0.3.6
+**Current browser app version:** 0.3.7
+
+For photos with unreliable recorded gimbal pitch (including downward views recorded
+as `0°`), the browser preview now supports reversible **Start folder here (marker)**
+corrections. It also reads original EXIF capture times ahead of DJI placeholder
+dates. See the [browser correction workflow](web-app/README.md#correcting-unreliable-gimbal-pitch-including-mavic-2).
 
 A dependency-free Python command-line tool for sorting drone building-inspection images into inspection run folders. The sorter reads embedded EXIF/XMP-style metadata and starts a new folder whenever the camera or gimbal pitch is detected as straight down (approximately 90 degrees).
 

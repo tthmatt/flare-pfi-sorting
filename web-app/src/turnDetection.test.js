@@ -4,6 +4,20 @@ import { readFileSync } from 'node:fs';
 import { analyzeGpsTurns } from './turnDetection.js';
 
 const golden = JSON.parse(readFileSync(new URL('../../tests/gps_turn_golden_vectors.json', import.meta.url), 'utf8'));
+test('manual markers suppress GPS proposals without replacing raw zero-degree pitch', () => {
+  const vector = golden.vectors.find((item) => item.expected.proposalCount > 0);
+  const records = structuredClone(vector.records);
+  const marker = records[vector.expected.boundaryIndex];
+  marker.pitch = 0;
+  marker.markerOverride = 'marker';
+  const result = analyzeGpsTurns(records, golden.settings);
+  assert.equal(result.proposals.length, 0);
+  assert.ok(result.reasonCounts['nearby-pitched-down-marker'] > 0);
+  assert.equal(marker.pitch, 0);
+  marker.markerOverride = 'auto';
+  assert.ok(analyzeGpsTurns(records, golden.settings).proposals.length > 0);
+});
+
 for (const vector of golden.vectors) {
   test(`GPS turn golden: ${vector.name}`, () => {
     const original = structuredClone(vector.records);

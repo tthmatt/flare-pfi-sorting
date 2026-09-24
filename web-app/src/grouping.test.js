@@ -22,6 +22,75 @@ const analysisSettings = {
   tolerance: 2, folderPrefix: 'test', skipMarkers: false, proposeGpsTurns: false,
 };
 
+function records(pitches) {
+  return pitches.map((pitch, index) => ({ file: { name: `${index}.jpg`, size: 1 }, pitch, altitude: null, captureDate: null }));
+}
+
+test('manual marker splits a recorded 0-degree photo without changing its pitch, and undo restores grouping', () => {
+  const items = records([-10, 0, -20]);
+  assert.equal(buildGroups(items, analysisSettings).groups.length, 1);
+  const corrected = items.map((item, index) => index === 1 ? { ...item, markerOverride: 'marker' } : item);
+  const result = buildGroups(corrected, analysisSettings);
+  assert.deepEqual(result.groups.map((group) => group.files.map((item) => item.file.name)), [['0.jpg'], ['1.jpg', '2.jpg']]);
+  assert.equal(result.groups[1].startReason, 'manual-marker');
+  assert.equal(result.groups[1].files[0].pitch, 0);
+  assert.equal(items[1].markerOverride, undefined);
+  assert.equal(buildGroups(corrected.map((item) => ({ ...item, markerOverride: 'auto' })), analysisSettings).groups.length, 1);
+});
+
+test('skipping a manual marker transfers its folder start to the next inspection photo', () => {
+  const items = records([-10, 0, -20, 0]);
+  items[1].markerOverride = 'marker';
+  items[3].markerOverride = 'marker';
+  const result = buildGroups(items, { ...analysisSettings, skipMarkers: true });
+  assert.deepEqual(result.groups.map((group) => group.files.map((item) => item.file.name)), [['0.jpg'], ['2.jpg']]);
+  assert.equal(result.groups[1].files[0].startReason, 'manual-marker');
+  assert.equal(result.skippedMarkerCount, 2);
+  assert.equal(buildGroups([{ ...items[1] }], { ...analysisSettings, skipMarkers: true }).groups.length, 0);
+});
+
+test('keep as inspection photo overrides automatic markers and skip-marker removal', () => {
+  const items = records([-10, -90, -20]);
+  items[1].markerOverride = 'normal';
+  const result = buildGroups(items, { ...analysisSettings, skipMarkers: true });
+  assert.equal(result.groups.length, 1);
+  assert.equal(result.groups[0].files.length, 3);
+  assert.equal(result.skippedMarkerCount, 0);
+});
+
+test('corrections follow file identity through sorting even when filenames are identical', () => {
+  const items = records([-10, 0, -20]);
+  for (const [index, item] of items.entries()) {
+    item.file.name = 'DJI_0075.JPG';
+    item.captureDate = new Date(Date.UTC(2026, 6, 15, 0, 0, index));
+  }
+  items[1].markerOverride = 'marker';
+  const result = buildGroups([items[2], items[1], items[0]], { ...analysisSettings, sortBy: 'capture' });
+  assert.deepEqual(result.groups.map((group) => group.files.map((item) => item.file)), [[items[0].file], [items[1].file, items[2].file]]);
+});
+
+test('three or more consecutive automatic markers do not alternate into extra folders', () => {
+  const result = buildGroups(records([-20, -90, -90, -90, -90, -10]), analysisSettings);
+  assert.equal(result.groups.length, 2);
+  assert.equal(result.groups[1].files.length, 5);
+});
+
+test('explicit manual folder starts take priority even next to another marker', () => {
+  const items = records([-90, 0, 0]);
+  items[1].markerOverride = 'marker';
+  items[2].markerOverride = 'marker';
+  assert.equal(buildGroups(items, analysisSettings).groups.length, 3);
+});
+
+test('keep as inspection photo suppresses an inferred split at that photo', () => {
+  const items = records([-10, -10, -10, -10, -10]);
+  [10, 18, 26, 18, 10].forEach((altitude, index) => { items[index].altitude = altitude; });
+  const options = { ...analysisSettings, inferAltitudeTurns: true };
+  assert.equal(buildGroups(items, options).groups.length, 2);
+  items[3].markerOverride = 'normal';
+  assert.equal(buildGroups(items, options).groups.length, 1);
+});
+
 test('metadata reads use bounded concurrency, preserve input order, and read every image once', async () => {
   const files = Array.from({ length: 9 }, (_, index) => ({ name: `${index}.jpg`, size: 1, lastModified: index }));
   const reads = new Map();

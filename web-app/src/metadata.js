@@ -1,3 +1,6 @@
+import { parseCaptureTimestamp } from './captureTime.js';
+import { readExifDates } from './exif.js';
+
 export const METADATA_READ_LIMIT = 2 * 1024 * 1024;
 
 const METADATA_NAMES = new Set([
@@ -42,16 +45,14 @@ function firstFloat(metadata, names) {
   return Number.isFinite(value) ? value : null;
 }
 
-function captureDateFromMetadata(metadata) {
-  for (const name of ['DateTimeOriginal', 'CreateDate']) {
+function captureDateFromMetadata(metadata, names = ['DateTimeOriginal', 'CreateDate']) {
+  for (const name of names) {
     const key = name.toLowerCase();
     for (const values of [metadata.attributes, metadata.elements]) {
       const raw = values.get(key);
       if (raw === undefined) continue;
-      let normalized = raw.replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3').replace(' ', 'T');
-      if (!/(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized)) normalized += 'Z';
-      const parsed = new Date(normalized);
-      if (!Number.isNaN(parsed.getTime())) return parsed;
+      const parsed = parseCaptureTimestamp(raw);
+      if (parsed) return parsed;
     }
   }
   return null;
@@ -72,10 +73,11 @@ function parseCoordinate(raw, maximum) {
   return Math.abs(value) <= maximum ? { value, invalid: false } : { value: null, invalid: true };
 }
 
-export function parseImageMetadataText(text) {
+export function parseImageMetadataText(text, exifDates = {}) {
   const metadata = collectMetadata(text);
   const pitch = firstFloat(metadata, ['GimbalPitchDegree', 'CameraPitchDegree', 'CameraPitch']);
-  const captureDate = captureDateFromMetadata(metadata);
+  const captureDate = exifDates.original ?? captureDateFromMetadata(metadata, ['DateTimeOriginal'])
+    ?? exifDates.digitized ?? captureDateFromMetadata(metadata, ['CreateDate']);
   const relative = firstFloat(metadata, ['RelativeAltitude']);
   const absolute = firstFloat(metadata, ['AbsoluteAltitude']);
   const gps = firstFloat(metadata, ['GPSAltitude']);
@@ -100,9 +102,10 @@ export function parseImageMetadataText(text) {
 
 export async function readImageMetadata(file) {
   let buffer = await file.slice(0, Math.min(file.size, METADATA_READ_LIMIT)).arrayBuffer();
+  const exifDates = readExifDates(buffer);
   let text = decoder.decode(buffer);
   buffer = null;
-  const metadata = parseImageMetadataText(text);
+  const metadata = parseImageMetadataText(text, exifDates);
   text = null;
   return metadata;
 }

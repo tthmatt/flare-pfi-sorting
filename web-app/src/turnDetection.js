@@ -1,3 +1,5 @@
+import { isMarkerImage } from './markers.js';
+
 export const GPS_TURN_DEFAULTS = Object.freeze({
   gpsWindowSize: 3, gpsMinDisplacementMeters: 4, gpsMaxClusterRadiusMeters: 3,
   gpsMinSignalRatio: 2, gpsMaxGapSeconds: 30,
@@ -46,8 +48,7 @@ export function analyzeGpsTurns(records, settings = {}) {
     const transitionStartIndex = prior.end; const transitionEndIndex = next.start;
     const suppressionStartIndex = Math.max(0, transitionStartIndex - suppression);
     const suppressionEndIndex = Math.min(records.length - 1, transitionEndIndex + suppression);
-    const markerPitch = Math.abs(options.markerPitch ?? -90); const pitchTolerance = options.tolerance ?? 2;
-    if (records.slice(suppressionStartIndex, suppressionEndIndex + 1).some((record) => record.pitch != null && Math.abs(Math.abs(record.pitch) - markerPitch) <= pitchTolerance)) { addReason(reasonCounts, 'nearby-pitched-down-marker'); continue; }
+    if (records.slice(suppressionStartIndex, suppressionEndIndex + 1).some((record) => isMarkerImage(record, options))) { addReason(reasonCounts, 'nearby-pitched-down-marker'); continue; }
     const validGps = (index) => records[index].latitude != null && records[index].longitude != null;
     const priorIndices = Array.from({ length: prior.end - prior.start + 1 }, (_, offset) => prior.start + offset).filter(validGps).slice(-options.gpsWindowSize);
     const nextIndices = Array.from({ length: next.end - next.start + 1 }, (_, offset) => next.start + offset).filter(validGps).slice(0, options.gpsWindowSize);
