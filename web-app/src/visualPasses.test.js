@@ -8,6 +8,7 @@ import { buildReviewItems } from './review.js';
 const fixture = JSON.parse(readFileSync(new URL('../test-support/visual-pass-calibration.json', import.meta.url)));
 const tiltFixture = JSON.parse(readFileSync(new URL('../test-support/visual-pass-pitch-adjustment.json', import.meta.url)));
 const sweepFixture = JSON.parse(readFileSync(new URL('../test-support/visual-pass-camera-sweep.json', import.meta.url)));
+const shortTiltFixture = JSON.parse(readFileSync(new URL('../test-support/visual-pass-short-tilted-return.json', import.meta.url)));
 function flight(source = fixture) {
   return source.rows.map((r) => ({ ...r, file: { name: `image_${r.id}.jpg`, size: 1 },
     latitude: r.north / 6371000 * 180 / Math.PI, longitude: r.east / 6371000 * 180 / Math.PI,
@@ -180,6 +181,109 @@ test('a small sideways shift is not enough for ordinary altitude-pass suggestion
   const rows = partialFlight();
   for (const r of rows) { r.latitude *= 0.55; r.longitude *= 0.55; }
   assert.equal(findVisualPassCandidates(rows, settings).candidates.length, 0);
+});
+
+test('an ascent followed by a short tilted return proposes 0076 and preserves the real marker at 0078', () => {
+  const rows = flight(shortTiltFixture);
+  rows.forEach((row) => { row.file.name = 'same-name.jpg'; });
+  const { candidates } = findVisualPassCandidates(rows, settings);
+  assert.deepEqual(candidates.map((c) => rows[c.boundaryIndex].id), ['0076']);
+  const [candidate] = candidates;
+  assert.equal(candidate.passEvidence, 'tilted-return');
+  assert.equal(candidate.priorDirection, 'up');
+  assert.equal(candidate.nextDirection, 'down');
+  assert.ok(Math.abs(candidate.lateralMeters - 3.494) < 0.01);
+  assert.equal(candidate.requiresVisualSupport, false);
+  assert.equal(candidate.comparisonBeforeIndex, null); // A 33° angle change is not an aligned comparison.
+  assert.equal(candidate.comparisonAfterIndex, null);
+  assert.deepEqual(buildGroups(rows, settings).groups.map((g) => g.files.length), [7]);
+  rows[candidate.boundaryIndex].markerOverride = 'split';
+  const result = buildGroups(rows, settings);
+  assert.deepEqual(result.groups.map((g) => g.files.map((r) => r.id)),
+    [['0070', '0071', '0072', '0073', '0074'], ['0076', '0077']]);
+  assert.equal(result.skippedMarkerCount, 1);
+  const retained = buildGroups(rows, { ...settings, skipMarkers: false });
+  assert.deepEqual(retained.groups.map((g) => g.files.map((r) => r.id)),
+    [['0070', '0071', '0072', '0073', '0074'], ['0076', '0077'], ['0078']]);
+  assert.equal(retained.groups[2].startReason, 'pitched-down');
+  rows[candidate.boundaryIndex].markerOverride = 'auto';
+  assert.deepEqual(buildGroups(rows, settings).groups.map((g) => g.files.length), [7]);
+});
+
+test('a short tilted return needs an established prior pass and a deliberate opposite tilt', () => {
+  const changes = {
+    'stationary tilt only': (rows) => { for (const r of rows) { r.latitude = 0; r.longitude = 0; } },
+    'short sideways move': (rows) => { for (const r of rows) { r.latitude *= 0.5; r.longitude *= 0.5; } },
+    approach: (rows) => { for (const r of rows) r.gimbalYaw += 90; },
+    'no prior altitude motion': (rows) => { for (const r of rows) r.altitude = 11.5; },
+    'partial prior altitude motion': (rows) => { [9.2, 9.2, 9.8, 10.6, 11.5].forEach((h, i) => { rows[i].altitude = h; }); },
+    'conflicting prior motion': (rows) => { rows[2].altitude = 10.5; },
+    'continued upward coverage': (rows) => { rows[6].pitch = -20; },
+    'small pitch adjustment': (rows) => { rows[6].pitch = -36; },
+    'missing return pitch': (rows) => { rows[6].pitch = null; },
+    'unstable return altitude': (rows) => { rows[6].altitude += 0.8; },
+    'transient GPS jump': (rows) => { rows[6].latitude = rows[4].latitude; rows[6].longitude = rows[4].longitude; },
+    'forward drift': (rows) => { rows[6].latitude += 1 / 6371000 * 180 / Math.PI; },
+  };
+  for (const [label, change] of Object.entries(changes)) {
+    const rows = flight(shortTiltFixture); change(rows);
+    assert.equal(findVisualPassCandidates(rows, settings).candidates.length, 0, label);
+  }
+});
+
+test('two tilted inspection photos need a nearby marker endpoint with matching telemetry', () => {
+  assert.equal(findVisualPassCandidates(flight(shortTiltFixture).slice(0, -1), settings).candidates.length, 0);
+  const changes = {
+    'ordinary final photo': (rows) => { rows[7].pitch = -47.8; },
+    'marker ignored manually': (rows) => { rows[7].markerOverride = 'normal'; },
+    'marker reused as inspection start': (rows) => { rows[7].markerOverride = 'split'; },
+    'marker at another position': (rows) => { rows[7].latitude = rows[4].latitude; rows[7].longitude = rows[4].longitude; },
+    'missing marker position': (rows) => { rows[7].latitude = null; },
+    'missing marker heading': (rows) => { rows[7].gimbalYaw = null; },
+    'marker heading change': (rows) => { rows[7].gimbalYaw += 20; },
+    'mixed marker altitude source': (rows) => { rows[7].altitudeSource = 'absolute'; },
+    'marker at another height': (rows) => { rows[7].altitude += 1; },
+    'missing marker time': (rows) => { rows[7].captureDate = null; },
+    'duplicate marker time': (rows) => { rows[7].captureDate = rows[6].captureDate; },
+    'late marker': (rows) => { rows[7].captureDate = new Date(rows[6].captureDate.getTime() + 61000); },
+  };
+  for (const [label, change] of Object.entries(changes)) {
+    const rows = flight(shortTiltFixture); change(rows);
+    assert.equal(findVisualPassCandidates(rows, settings).candidates.length, 0, label);
+  }
+});
+
+test('the next marker cannot supply a missing tilt step or override a reviewed boundary', () => {
+  for (const change of [
+    (r) => { r.splice(6, 1); }, // Only one inspection photo before the marker.
+    (r) => { r[6].pitch = r[5].pitch; },
+    (r) => { r[5].markerOverride = 'normal'; },
+    (r) => { r[5].markerOverride = 'split'; },
+    (r) => { r[4].markerOverride = 'marker'; },
+    (r) => { r[5].altitudeSource = 'absolute'; },
+    (r) => { r[5].captureDate = new Date(r[4].captureDate.getTime() + 61000); },
+  ]) {
+    const rows = flight(shortTiltFixture); change(rows);
+    assert.equal(findVisualPassCandidates(rows, settings).candidates.length, 0);
+  }
+});
+
+test('a complete three-photo tilted return can supply its own evidence without an ending marker', () => {
+  const rows = flight(shortTiltFixture);
+  rows[7].pitch = -59;
+  const { candidates } = findVisualPassCandidates(rows, settings);
+  assert.deepEqual(candidates.map((c) => rows[c.boundaryIndex].id), ['0076']);
+  assert.equal(candidates[0].passEvidence, 'tilted-return');
+});
+
+test('a descent can likewise return by tilting upwards in the next column', () => {
+  const rows = flight(shortTiltFixture);
+  rows.forEach((r) => { r.altitude = 20 - r.altitude; });
+  [rows[5].pitch, rows[6].pitch] = [rows[6].pitch, rows[5].pitch];
+  const [candidate] = findVisualPassCandidates(rows, settings).candidates;
+  assert.equal(candidate.boundaryIndex, 5);
+  assert.equal(candidate.priorDirection, 'down');
+  assert.equal(candidate.nextDirection, 'up');
 });
 
 test('partial evidence does not turn tilts, approaches, transient GPS jumps or horizontal-only moves into passes', () => {

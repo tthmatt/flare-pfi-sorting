@@ -42,25 +42,51 @@ function comparisonPair(before, after, boundaryIndex, lateralDirection, cameraSw
     a.pitchDelta - b.pitchDelta || a.altitudeDelta - b.altitudeDelta || a.distance - b.distance)[0] ?? null;
 }
 
+function pitchSweepDirection(photos, minSpan = 20, minSteps = 2) {
+  if (photos.some((item) => !Number.isFinite(item.pitch) || Math.abs(item.pitch) > 60)) return null;
+  const span = photos.at(-1).pitch - photos[0].pitch;
+  const steps = photos.slice(1).map((item, i) => item.pitch - photos[i].pitch);
+  // Deliberate tilt steps, not gimbal jitter; allow at most two degrees of backtrack.
+  if (Math.abs(span) < minSpan || steps.filter((d) => Math.abs(d) >= 5).length < minSteps
+    || steps.some((d) => d * Math.sign(span) < -2)) return null;
+  return Math.sign(span);
+}
+
 function cameraSweepEvidence(before, after) {
   if (before.length < 3 || after.length < 3) return null;
-  const direction = (photos) => {
-    const span = photos.at(-1).pitch - photos[0].pitch;
-    const steps = photos.slice(1).map((item, i) => item.pitch - photos[i].pitch);
-    // Two deliberate tilt steps spanning at least 20 degrees, not a single
-    // adjustment or small gimbal jitter. Allow at most two degrees of backtrack.
-    if (Math.abs(span) < 20 || steps.filter((d) => Math.abs(d) >= 5).length < 2
-      || steps.some((d) => d * Math.sign(span) < -2)) return null;
-    return Math.sign(span);
-  };
   // Use the shortest complete sweep beside the boundary. A fourth photo may
   // already belong to the next climb/descent or be a setup adjustment.
   for (let b = 3; b <= before.length; b += 1) for (let a = 3; a <= after.length; a += 1) {
     const prior = before.slice(0, b); const next = after.slice(0, a); const items = [...prior, ...next];
     if (items.some((item) => !Number.isFinite(item.pitch) || Math.abs(item.pitch) > 60)
       || Math.max(...items.map((item) => item.altitude)) - Math.min(...items.map((item) => item.altitude)) > 0.75) continue;
-    const priorSign = direction([...prior].reverse()); const nextSign = direction(next);
+    const priorSign = pitchSweepDirection([...prior].reverse()); const nextSign = pitchSweepDirection(next);
     if (priorSign && nextSign === -priorSign) return { priorSign, nextSign, before: prior, after: next };
+  }
+  return null;
+}
+
+// A vertical flight can return down/up the next column by tilting the camera.
+// Two inspection photos suffice only when a separate marker ends that short pass.
+// The marker verifies its endpoint, never supplies an inspection tilt step.
+function tiltedReturnEvidence(after, following, settings, lateralMeters) {
+  if (after.length < 2) return null;
+  const short = after.length === 2;
+  if (short && (!following || !isMarkerImage(following, settings) || !hasPosition(following)
+    || !sameAltitudeSource(after[0], following) || !Number.isFinite(following.gimbalYaw)
+    || angleDifference(after[0].gimbalYaw, following.gimbalYaw) > 8
+    || !Number.isFinite(gap(after.at(-1), following))
+    || gap(after.at(-1), following) <= 0 || gap(after.at(-1), following) > 60)) return null;
+  for (let length = short ? 2 : 3; length <= after.length; length += 1) {
+    const photos = after.slice(0, length);
+    const positions = short ? [...photos, following] : photos;
+    if (Math.max(...positions.map((item) => item.altitude)) - Math.min(...positions.map((item) => item.altitude)) > 0.75) continue;
+    const direction = pitchSweepDirection(photos, short ? 10 : 20, short ? 1 : 2);
+    if (!direction) continue;
+    const drift = positions.map((item) => {
+      const move = cameraDisplacement(after[0], item); return Math.hypot(move.lateral, move.forward);
+    });
+    if (Math.max(...drift) <= Math.abs(lateralMeters) / 6) return { direction, photos };
   }
   return null;
 }
@@ -98,7 +124,7 @@ export function findVisualPassCandidates(records, settings = {}) {
     }
     if (before.length < 3 || after.length < 2) { reject('insufficient-surrounding-photos'); continue; }
     const sweep = cameraSweepEvidence(before, after);
-    let priorSign; let nextSign; let passEvidence;
+    let priorSign; let nextSign; let passEvidence; let tiltedReturn;
     if (sweep) {
       ({ priorSign, nextSign } = sweep); passEvidence = 'camera-sweep';
       // Small GPS shifts alone are insufficient: both complete camera sweeps
@@ -118,17 +144,24 @@ export function findVisualPassCandidates(records, settings = {}) {
       const nextSteps = after.slice(1).map((item, i) => item.altitude - after[i].altitude);
       // Allow a small setup adjustment before the next pass (e.g. approaching a roof).
       const verticalSteps = nextSteps.filter((d) => Math.abs(d) > 1);
-      if (!verticalSteps.length || (priorSign !== null && !verticalSteps.some((d) => Math.sign(d) === -priorSign))
-        || (priorSign === null && verticalSteps.some((d) => Math.sign(d) !== Math.sign(verticalSteps[0])))) {
-        reject('no-return-pass-evidence'); continue;
+      tiltedReturn = established && !verticalSteps.length
+        ? tiltedReturnEvidence(after, records[index + after.length], settings, movement.lateral) : null;
+      if (tiltedReturn?.direction === -priorSign) {
+        nextSign = tiltedReturn.direction; passEvidence = 'tilted-return';
+      } else {
+        tiltedReturn = null;
+        if (!verticalSteps.length || (priorSign !== null && !verticalSteps.some((d) => Math.sign(d) === -priorSign))
+          || (priorSign === null && verticalSteps.some((d) => Math.sign(d) !== Math.sign(verticalSteps[0])))) {
+          reject('no-return-pass-evidence'); continue;
+        }
+        // A cropped sequence or level detail photos can hide the previous pass.
+        // Require three following photos and never invent the previous direction.
+        if (!established && after.length < 3) { reject('insufficient-surrounding-photos'); continue; }
+        nextSign = priorSign === null ? Math.sign(verticalSteps[0]) : -priorSign;
+        passEvidence = established ? 'established' : 'partial';
       }
-      // A cropped sequence or level detail photos can hide the previous pass.
-      // Require three following photos and never invent the previous direction.
-      if (!established && after.length < 3) { reject('insufficient-surrounding-photos'); continue; }
-      nextSign = priorSign === null ? Math.sign(verticalSteps[0]) : -priorSign;
-      passEvidence = established ? 'established' : 'partial';
     }
-    const priorPhotos = sweep?.before ?? before; const nextPhotos = sweep?.after ?? after;
+    const priorPhotos = sweep?.before ?? before; const nextPhotos = sweep?.after ?? tiltedReturn?.photos ?? after;
     const priorNoise = Math.max(...priorPhotos.map((item) => Math.abs(cameraDisplacement(previous, item).lateral)));
     const nextNoise = Math.max(...nextPhotos.map((item) => Math.abs(cameraDisplacement(next, item).lateral)));
     if (Math.max(priorNoise, nextNoise) > Math.abs(movement.lateral) / 3) { reject('unstable-lateral-position'); continue; }

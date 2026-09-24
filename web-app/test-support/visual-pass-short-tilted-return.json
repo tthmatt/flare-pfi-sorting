@@ -1,0 +1,77 @@
+{
+  "description": "Operator-confirmed boundary before 0076 after an ascent, followed by two level-altitude tilted inspection photos and a real marker at 0078. Relative positions and times only; no original photos, locations, absolute capture dates or camera identifiers.",
+  "rows": [
+    {
+      "id": "0070",
+      "seconds": 0,
+      "north": 0,
+      "east": 0,
+      "altitude": 5.3,
+      "pitch": -17.2,
+      "gimbalYaw": 128.9
+    },
+    {
+      "id": "0071",
+      "seconds": 3,
+      "north": 0.0425,
+      "east": -0.1422,
+      "altitude": 5.3,
+      "pitch": 0,
+      "gimbalYaw": 128.9
+    },
+    {
+      "id": "0072",
+      "seconds": 6,
+      "north": -0.0385,
+      "east": -0.2409,
+      "altitude": 7.4,
+      "pitch": 0,
+      "gimbalYaw": 128.9
+    },
+    {
+      "id": "0073",
+      "seconds": 9,
+      "north": -0.0379,
+      "east": -0.2553,
+      "altitude": 9.3,
+      "pitch": 0,
+      "gimbalYaw": 128.9
+    },
+    {
+      "id": "0074",
+      "seconds": 11,
+      "north": -0.211,
+      "east": -0.2054,
+      "altitude": 11.5,
+      "pitch": 0,
+      "gimbalYaw": 128.9
+    },
+    {
+      "id": "0076",
+      "seconds": 39,
+      "north": -2.629,
+      "east": -2.773,
+      "altitude": 11.5,
+      "pitch": -32.9,
+      "gimbalYaw": 128.9
+    },
+    {
+      "id": "0077",
+      "seconds": 41,
+      "north": -2.6263,
+      "east": -2.7886,
+      "altitude": 11.5,
+      "pitch": -47.8,
+      "gimbalYaw": 128.9
+    },
+    {
+      "id": "0078",
+      "seconds": 43,
+      "north": -2.6371,
+      "east": -2.7334,
+      "altitude": 11.5,
+      "pitch": -90,
+      "gimbalYaw": 128.9
+    }
+  ]
+}
