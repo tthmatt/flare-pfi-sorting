@@ -1,6 +1,6 @@
 # Drone Image Sorter Web App
 
-**Current version:** 0.3.7
+**Current version:** 0.4.0
 
 Browser-based version of the PFI drone inspection image sorter for deployment on Vercel or any static hosting provider.
 
@@ -15,6 +15,57 @@ Browser-based version of the PFI drone inspection image sorter for deployment on
 
 Images are not uploaded to a server by this app.
 
+## Visual pass suggestions (experimental)
+
+For one folder per vertical up/down inspection pass, a missed pitch marker can
+now be reviewed using ordinary inspection photos:
+
+1. Select the original photos and click **Analyze images**.
+2. Under **Visual pass suggestions**, click **Find pass boundaries**.
+3. Review the suggested boundary and its neighbouring photos. Use the dropdown
+   to move the first photo if necessary, then **Accept boundary · keep photo**,
+   or dismiss the suggestion. Suggestions alone do not change any folder.
+4. Review the full flight, then download the ZIP. Accepted starts retain the
+   inspection photo even with **Skip pitched-down marker photos** enabled.
+
+**Start folder here (keep photo)** is also available on every photo for boundaries
+the detector misses. **Keep in current folder (inspection photo)** prevents a
+split at that photo. Accepted starts use capture-time order, are recorded as
+`manual-split` with `marker_override=split` in the CSV, and can be undone. Like
+other corrections, they survive re-analysis of the same selection, but not new
+file selections or a page reload. Undo restores any prior decision on that photo.
+
+The detector first checks consecutive capture-time records for predominantly
+sideways displacement relative to **gimbal yaw**, compatible relative/absolute
+altitude, stable camera orientation, and vertical-pass evidence around the move.
+Missing metadata is not treated as zero. It rejects forward approaches, camera
+tilts, inconsistent altitude sources, GPS jumps that do not persist, and nearby
+existing markers. Thresholds are experimental, not calibrated confidence scores.
+
+Candidate JPG/PNG pairs are decoded sequentially in a Web Worker into thumbnails
+no larger than 480 pixels. Distinct normalised patches in the lower image region
+are matched and checked for consistent sideways movement. Excluding the upper
+region reduces distant-building/sky matches, but is only a heuristic: this is
+not semantic facade recognition. No ML model, network request or paid API is
+used for the visual check. The main thread remains available for cancellation.
+The worker is terminated on completion, cancellation, timeout or error.
+
+The first prototype needs capture times, GPS, gimbal yaw, pitch and consistent
+altitude, with overlapping views and an established pass followed by return-pass
+evidence. It can miss short/partial passes, same-direction passes, large camera
+changes, low-texture walls and repeated windows. TIFF/DNG, decode failures and
+unsupported browser features are explicitly shown as inconclusive visual checks.
+An inconclusive comparison never becomes a visually supported claim. Candidate
+sessions are bounded to 200 pairs and individual files to 64 MiB; any unexamined
+candidates are reported. Always review the complete set before exporting.
+
+Calibration: the supplied three-pass sequence supports the missing boundary
+before photo `0015`. Its tilt/approach adjustments are useful negative examples.
+The redacted telemetry fixture preserves relative motion only; original images,
+absolute GPS coordinates, capture dates and camera identifiers are not committed.
+This one labelled flight does not establish general accuracy or Mavic 2 support.
+The Python CLI is unchanged.
+
 ## Correcting unreliable gimbal pitch (including Mavic 2)
 
 A downward-facing photo may contain a recorded gimbal pitch of `0°`. The app
@@ -23,7 +74,7 @@ analysis and use **Folder decision → Start folder here (marker)** on a missed
 marker. An explicit correction starts a folder even beside another marker.
 
 - **Automatic** restores the normal pitch and altitude rules for that photo.
-- **Keep as inspection photo** keeps the photo in the output and prevents an
+- **Keep in current folder (inspection photo)** keeps the photo in the output and prevents an
   automatic or inferred split at that photo.
 - Corrections update folder previews, CSV reports, and the downloaded ZIP immediately.
 - **Skip pitched-down marker photos in output** also skips manually marked photos;
@@ -71,6 +122,13 @@ Import this GitHub repository into Vercel and use these settings:
 
 
 ## Changelog
+
+### 0.4.0 - 2026-09-24
+
+- Added optional local visual pass suggestions with bounded, cancellable thumbnail comparison.
+- Added accept, move, dismiss and undo controls with explicit inconclusive states.
+- Added retained-photo folder starts and capture-order grouping for reviewed boundaries.
+- Added regression coverage for the confirmed missing boundary, camera adjustments and ZIP photo retention.
 
 ### 0.3.7 - 2026-09-24
 

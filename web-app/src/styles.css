@@ -509,3 +509,11 @@ th {
 }
 .proposal-item { display: grid; gap: .3rem; padding: .75rem 0; border-top: 1px solid var(--border, #d7dde5); }
 .proposal-item span { color: #52606d; font-size: .9rem; }
+.visual-pass-panel { scroll-margin-top: 16px; }
+.pass-comparison { grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); }
+.pass-comparison .thumb { height: 170px; object-fit: contain; }
+.chosen-boundary { border: 3px solid var(--ink); }
+.chosen-boundary > span:first-child { color: var(--ink); font-weight: 900; }
+.visual-pass-panel .proposal-item { margin-top: 18px; gap: 12px; }
+.visual-pass-panel .proposal-item p { margin: 0; }
+.visual-pass-panel .proposal-item > strong { overflow-wrap: anywhere; }

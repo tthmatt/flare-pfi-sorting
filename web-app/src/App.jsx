@@ -9,9 +9,14 @@ import { canPreviewInBrowser, getDisplayPath, getFileName, isImageFile, safePath
 import { downloadBlob, makeZip } from './reports.js';
 import { createCalibrationReport } from './calibration.js';
 import { analysisProgress, analysisSummary, logStatus } from './telemetry.js';
+import { analyzeVisualPasses } from './visualAnalysis.js';
 
-const APP_VERSION = '0.3.7';
+const APP_VERSION = '0.4.0';
 const CHANGELOG = [
+  {
+    version: '0.4.0', date: '2026-09-24',
+    changes: ['Added optional, local visual pass suggestions with accept, move, dismiss and undo controls.', 'Added folder starts that retain inspection photos when marker photos are skipped.'],
+  },
   {
     version: '0.3.7', date: '2026-09-24',
     changes: ['Added reversible folder-start corrections for photos with unreliable gimbal pitch, including skipped markers.', 'Read original EXIF capture times before DJI placeholder dates.'],
@@ -105,6 +110,7 @@ function formatAltitude(altitude) {
 export default function App() {
   const folderInputRef = useRef(null);
   const fileInputRef = useRef(null);
+  const visualController = useRef(null);
   const [files, setFiles] = useState([]);
   const [analyses, setAnalyses] = useState([]);
   const [markerOverrides, setMarkerOverrides] = useState(() => new Map());
@@ -112,6 +118,8 @@ export default function App() {
   const [calibrationKey, setCalibrationKey] = useState(0);
   const [status, setStatus] = useState('Choose a folder or images to begin.');
   const [isWorking, setIsWorking] = useState(false);
+  const [visualResult, setVisualResult] = useState(null);
+  const [visualWorking, setVisualWorking] = useState(false);
   const [settings, setSettings] = useState({
     tolerance: 2,
     inferAltitudeTurns: false,
@@ -143,6 +151,9 @@ export default function App() {
   const { proposals: turnCandidates, reasonCounts: turnReasonCounts } = useMemo(() => settings.proposeGpsTurns
     ? analyzeGpsTurns(captureOrderedAnalyses, settings) : { proposals: [], reasonCounts: {} }, [captureOrderedAnalyses, settings]);
   const unknownPitchCount = useMemo(() => analyses.filter((item) => item.pitch === null).length, [analyses]);
+  const hasInspectionSplits = reviewedAnalyses.some((item) => item.markerOverride === 'split');
+
+  useEffect(() => () => visualController.current?.abort(), []);
 
   useEffect(() => {
     logStatus(status);
@@ -158,6 +169,7 @@ export default function App() {
     const selected = Array.from(fileList || []);
     setFiles(selected);
     setAnalyses([]);
+    setVisualResult(null);
     setMarkerOverrides(new Map());
     setElapsedMs(0);
     setCalibrationKey((key) => key + 1);
@@ -166,6 +178,7 @@ export default function App() {
   }
 
   function setMarkerOverride(file, mode) {
+    if (mode === 'split') setSettings((current) => ({ ...current, sortBy: 'capture' }));
     setMarkerOverrides((current) => {
       const next = new Map(current);
       if (mode === 'auto') next.delete(file);
@@ -189,6 +202,7 @@ export default function App() {
     }
     setIsWorking(true);
     setAnalyses([]);
+    setVisualResult(null);
     setCalibrationKey((key) => key + 1);
     try {
       const result = await analyzeFiles(imageFiles, settings, (done, total) => {
@@ -201,6 +215,25 @@ export default function App() {
       setStatus(error instanceof Error ? error.message : String(error));
     } finally {
       setIsWorking(false);
+    }
+  }
+
+  async function handleVisualAnalyze() {
+    const controller = new AbortController();
+    visualController.current = controller;
+    setIsWorking(true); setVisualWorking(true); setVisualResult(null);
+    setStatus('Looking for sideways moves between vertical passes...');
+    try {
+      const result = await analyzeVisualPasses(captureOrderedAnalyses, settings, {
+        signal: controller.signal,
+        onProgress: (done, total) => setStatus(`Checking visual evidence ${done} of ${total}...`),
+      });
+      setVisualResult(result);
+      setStatus(`${result.proposals.length} pass suggestion${result.proposals.length === 1 ? '' : 's'} ready for review. Accept a boundary to update folders.`);
+    } catch (error) {
+      setStatus(error.name === 'AbortError' ? 'Visual analysis cancelled. Folder decisions are unchanged.' : error.message);
+    } finally {
+      visualController.current = null; setVisualWorking(false); setIsWorking(false);
     }
   }
 
@@ -271,12 +304,13 @@ export default function App() {
           </label>
           <label>
             Sort order
-            <select value={settings.sortBy} onChange={(event) => updateSetting('sortBy', event.target.value)}>
+            <select value={hasInspectionSplits ? 'capture' : settings.sortBy} disabled={hasInspectionSplits} onChange={(event) => updateSetting('sortBy', event.target.value)}>
               <option value="filename">Filename / folder order</option>
               <option value="capture">Capture time, then filename</option>
               <option value="modified">Modified time, then filename</option>
             </select>
           </label>
+          {hasInspectionSplits && <p className="review-help">Inspection splits use capture-time order. Reset those corrections to choose another order.</p>}
           <label className="check-row">
             <input type="checkbox" checked={settings.inferAltitudeTurns} onChange={(event) => updateSetting('inferAltitudeTurns', event.target.checked)} />
             Infer missed altitude turns
@@ -329,6 +363,9 @@ export default function App() {
           </div>
 
           {analyses.length > 0 && <TelemetryCoverage analyses={analyses} />}
+          {analyses.length > 0 && <VisualPassPanel result={visualResult} working={visualWorking} disabled={isWorking}
+            analyses={captureOrderedAnalyses} overrides={markerOverrides} onAnalyze={handleVisualAnalyze}
+            onCancel={() => visualController.current?.abort()} onOverride={setMarkerOverride} />}
           {analyses.length > 0 && settings.proposeGpsTurns && <TurnProposalPanel key={calibrationKey} proposals={turnCandidates} reasons={turnReasonCounts} analyses={captureOrderedAnalyses} settings={settings} />}
 
           <section className="panel">
@@ -349,6 +386,78 @@ export default function App() {
       <Analytics />
     </main>
   );
+}
+
+const VISUAL_REASON_LABELS = {
+  'unsupported-format': 'Visual comparison supports JPG and PNG photos.',
+  'image-too-large': 'This photo exceeds the 64 MiB visual-analysis limit.',
+  'browser-unavailable': 'This browser cannot perform the visual comparison.',
+  'image-decode-failed': 'One of these photos could not be decoded.',
+  'unsupported-image': 'These image dimensions are not supported.',
+  'different-image-dimensions': 'The photos have different shapes or orientations.',
+  'insufficient-distinct-matches': 'Too few distinct details could be matched.',
+  'ambiguous-visual-motion': 'Matched details do not establish a consistent sideways shift.',
+};
+
+function VisualPassPanel({ result, working, disabled, analyses, overrides, onAnalyze, onCancel, onOverride }) {
+  const [active, setActive] = useState(0);
+  const [dismissed, setDismissed] = useState(() => new Set());
+  const [chosen, setChosen] = useState(null);
+  const [applied, setApplied] = useState(() => new Map());
+  useEffect(() => { setActive(0); setDismissed(new Set()); setChosen(null); setApplied(new Map()); }, [result]);
+  const proposal = result?.proposals[Math.min(active, result.proposals.length - 1)];
+  const start = proposal ? Math.max(0, proposal.boundaryIndex - 2) : 0;
+  const window = proposal ? analyses.slice(start, proposal.boundaryIndex + 3) : [];
+  const appliedDecision = proposal && applied.get(proposal.file);
+  const accepted = appliedDecision && overrides.get(appliedDecision.file) === 'split';
+  const boundaryIndex = accepted ? analyses.findIndex((item) => item.file === appliedDecision.file) : chosen ?? proposal?.boundaryIndex;
+  const accept = () => {
+    const file = analyses[boundaryIndex]?.file;
+    if (!file) return;
+    const priorMode = overrides.get(file) ?? 'auto';
+    onOverride(file, 'split');
+    setApplied((current) => new Map(current).set(proposal.file, { file, priorMode }));
+  };
+  return <section className="panel visual-pass-panel" aria-label="Visual pass suggestions">
+    <div className="panel-heading"><h2>Visual pass suggestions</h2><span>Experimental</span></div>
+    <p className="review-help">One folder per vertical up/down pass. Check sideways movement using photos, GPS, camera direction and altitude. Photos stay on this device. Each suggestion needs your review.</p>
+    <p className="review-help">This first version needs overlapping JPG/PNG photos and reliable capture time, GPS, gimbal yaw, pitch and altitude. Repeated windows, large angle changes or missing metadata can leave passes undetected. Review the full flight before export.</p>
+    <div className="button-grid">
+      <button type="button" onClick={onAnalyze} disabled={disabled}>Find pass boundaries</button>
+      {working && <button type="button" className="secondary" onClick={onCancel}>Cancel visual analysis</button>}
+    </div>
+    {result && !result.proposals.length && <p className="empty-state">No supported transition candidate was found. This does not mean the flight contains only one pass. Use “Start folder here (keep photo)” in Review photos for missed boundaries.</p>}
+    {result?.unchecked > 0 && <p role="status">{result.unchecked} further candidates were not checked because this review is limited to 200. Review those photos manually.</p>}
+    {proposal && <article className="proposal-item">
+      <p><strong>Suggestion {active + 1} of {result.proposals.length}</strong> · {accepted ? 'Accepted' : dismissed.has(proposal.file) ? 'Dismissed' : 'Needs review'}</p>
+      <strong>Start next folder at {getFileName(proposal.file)}</strong>
+      <p>{proposal.priorDirection} → {proposal.nextDirection} evidence · sideways GPS shift about {Math.abs(proposal.lateralMeters).toFixed(1)} m · altitude change {proposal.altitudeDelta.toFixed(1)} m.</p>
+      <p>{proposal.visual.supported ? 'Visual check: matching building details support a sideways shift.'
+        : `Visual check inconclusive. ${VISUAL_REASON_LABELS[proposal.visual.reason] ?? 'Review the photos yourself before accepting.'}`}</p>
+      <div className="preview-grid pass-comparison">{window.map((item, offset) => <article key={start + offset} className={`preview-card ${start + offset === boundaryIndex ? 'chosen-boundary' : ''}`}>
+        <span>{start + offset === boundaryIndex ? 'NEW FOLDER START' : start + offset < boundaryIndex ? 'Before boundary' : 'After boundary'}</span>
+        <ImageThumbnail file={item.file} /><strong>{getFileName(item.file)}</strong>
+        <span>{formatAltitude(item.altitude)} · pitch {formatPitch(item.pitch)}</span>
+      </article>)}</div>
+      <label>First inspection photo of the new pass
+        <select aria-label="First inspection photo of the new pass" value={boundaryIndex} disabled={disabled || accepted} onChange={(event) => setChosen(Number(event.target.value))}>
+          {window.map((item, offset) => <option key={start + offset} value={start + offset}>{getFileName(item.file)}</option>)}
+        </select>
+      </label>
+      {accepted ? <div><p>Accepted: {getFileName(appliedDecision.file)}. The photo stays in the ZIP.</p>
+        <button type="button" className="secondary" disabled={disabled} onClick={() => {
+          onOverride(appliedDecision.file, appliedDecision.priorMode);
+          setApplied((current) => { const next = new Map(current); next.delete(proposal.file); return next; });
+        }}>Undo accepted boundary</button></div> : <div className="button-grid">
+        <button type="button" disabled={disabled} onClick={accept}>Accept boundary · keep photo</button>
+        <button type="button" className="secondary" disabled={disabled} onClick={() => setDismissed((current) => new Set(current).add(proposal.file))}>Dismiss suggestion</button>
+      </div>}
+      <div className="button-grid">
+        <button type="button" className="secondary" disabled={disabled || active === 0} onClick={() => { setActive(active - 1); setChosen(null); }}>Previous suggestion</button>
+        <button type="button" className="secondary" disabled={disabled || active >= result.proposals.length - 1} onClick={() => { setActive(active + 1); setChosen(null); }}>Next suggestion</button>
+      </div>
+    </article>}
+  </section>;
 }
 
 function TurnProposalPanel({ proposals, reasons, analyses, settings }) {
@@ -486,7 +595,7 @@ function Preview({ analyses, groups, settings, onOverride, onReset, overrideCoun
         <h2>Review photos</h2>
         <span>{visibleItems.length} of {filteredItems.length} shown</span>
       </div>
-      <p className="review-help">Some photos record an incorrect pitch, including 0° for a downward view. Use “Start folder here” on a missed marker. Corrections update folders and the ZIP immediately; original photos and recorded angles stay unchanged.</p>
+      <p className="review-help">Use “Start folder here (keep photo)” for the first inspection photo of a new pass. Use the marker option for a downward marker with incorrect recorded pitch. “Keep in current folder” prevents a split at that photo. Corrections update folders and the ZIP immediately.</p>
       <p className="review-help">Skipped markers stay visible here. Corrections are kept when you re-analyze, and cleared when you choose new files or reload the page.</p>
       <div className="review-toolbar">
         <label>Find a photo<input type="search" value={search} onChange={(event) => { setSearch(event.target.value); setVisibleCount(100); }} placeholder="Filename or folder path" /></label>
@@ -505,8 +614,9 @@ function Preview({ analyses, groups, settings, onOverride, onReset, overrideCoun
             <label>Folder decision
               <select aria-label={`Folder decision for ${getDisplayPath(item.file)}`} value={item.markerOverride} disabled={disabled} onChange={(event) => onOverride(item.file, event.target.value)}>
                 <option value="auto">Automatic</option>
+                <option value="split">Start folder here (keep photo)</option>
                 <option value="marker">Start folder here (marker)</option>
-                <option value="normal">Keep as inspection photo</option>
+                <option value="normal">Keep in current folder (inspection photo)</option>
               </select>
             </label>
             {item.markerOverride !== 'auto' && <span className="manual-label">Manual correction • select Automatic to undo</span>}

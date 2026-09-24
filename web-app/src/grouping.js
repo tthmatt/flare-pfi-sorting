@@ -1,13 +1,13 @@
 import { isImageFile, safePathPart } from './files.js';
 import { readImageMetadata } from './metadata.js';
-import { sortAnalyses } from './ordering.js';
+import { sortAnalyses, groupingOrder } from './ordering.js';
 import { analyzeGpsTurns } from './turnDetection.js';
 import { isMarkerImage } from './markers.js';
 
 export { isMarkerPitch } from './markers.js';
 
 export function buildGroups(analyses, settings) {
-  const ordered = sortAnalyses(analyses, settings.inferAltitudeTurns ? 'capture' : settings.sortBy);
+  const ordered = sortAnalyses(analyses, groupingOrder(analyses, settings));
   const groups = [];
   let currentGroup = null;
   let pendingNewGroup = false;
@@ -16,8 +16,8 @@ export function buildGroups(analyses, settings) {
   const markers = ordered.map((item) => isMarkerImage(item, settings));
   // Explicit folder starts take priority. Automatic markers in one consecutive
   // run produce only one split (compare markers, not the mutated starts array).
-  const pitchStarts = markers.map((marker, index) => marker
-    && (ordered[index].markerOverride === 'marker' || index === 0 || !markers[index - 1]));
+  const pitchStarts = markers.map((marker, index) => ordered[index].markerOverride === 'split' || (marker
+    && (ordered[index].markerOverride === 'marker' || index === 0 || !markers[index - 1])));
   const { reversalStarts, horizontalStarts } = settings.inferAltitudeTurns
     ? inferAltitudeStarts(ordered, pitchStarts, settings)
     : { reversalStarts: new Set(), horizontalStarts: new Set() };
@@ -26,7 +26,8 @@ export function buildGroups(analyses, settings) {
     const item = ordered[index];
     const marker = markers[index];
     let startReason = item.markerOverride === 'normal' ? null
-      : pitchStarts[index] ? (item.markerOverride === 'marker' ? 'manual-marker' : 'pitched-down')
+      : item.markerOverride === 'split' ? 'manual-split'
+        : pitchStarts[index] ? (item.markerOverride === 'marker' ? 'manual-marker' : 'pitched-down')
         : horizontalStarts.has(index) ? 'horizontal-traverse' : reversalStarts.has(index) ? 'altitude-reversal' : null;
     let startsNewFolder = startReason !== null;
     if (settings.skipMarkers && marker) {
@@ -39,7 +40,7 @@ export function buildGroups(analyses, settings) {
     }
     if (pendingNewGroup || !currentGroup || startsNewFolder) {
       if (pendingNewGroup) {
-        startReason = pendingStartReason;
+        startReason = startReason ?? pendingStartReason;
         startsNewFolder = true;
       }
       currentGroup = {

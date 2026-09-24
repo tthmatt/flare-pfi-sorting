@@ -1,0 +1,149 @@
+{
+  "description": "Calibration telemetry from a confirmed three-pass sample. Positions translated to an arbitrary origin; times relative; no original images, locations, serial numbers or filenames. Expected boundary 0015 was confirmed by the operator.",
+  "rows": [
+    {
+      "id": "0001",
+      "seconds": 0.0,
+      "north": 0.0,
+      "east": 0.0,
+      "altitude": 10.3,
+      "pitch": 0.0,
+      "gimbalYaw": 131.2
+    },
+    {
+      "id": "0002",
+      "seconds": 10.0,
+      "north": 0.04,
+      "east": -0.009,
+      "altitude": 8.7,
+      "pitch": 0.0,
+      "gimbalYaw": 131.2
+    },
+    {
+      "id": "0003",
+      "seconds": 17.0,
+      "north": 0.028,
+      "east": 0.025,
+      "altitude": 6.3,
+      "pitch": 0.0,
+      "gimbalYaw": 131.2
+    },
+    {
+      "id": "0004",
+      "seconds": 37.0,
+      "north": 0.012,
+      "east": -0.046,
+      "altitude": 5.4,
+      "pitch": 0.0,
+      "gimbalYaw": 131.2
+    },
+    {
+      "id": "0005",
+      "seconds": 43.0,
+      "north": -0.006,
+      "east": -0.04,
+      "altitude": 4.4,
+      "pitch": 0.0,
+      "gimbalYaw": 131.2
+    },
+    {
+      "id": "0006",
+      "seconds": 45.0,
+      "north": 0.012,
+      "east": 0.003,
+      "altitude": 4.4,
+      "pitch": -15.8,
+      "gimbalYaw": 131.2
+    },
+    {
+      "id": "0007",
+      "seconds": 49.0,
+      "north": -0.022,
+      "east": -0.059,
+      "altitude": 4.4,
+      "pitch": -52.1,
+      "gimbalYaw": 131.2
+    },
+    {
+      "id": "0008",
+      "seconds": 54.0,
+      "north": 0.0,
+      "east": -0.074,
+      "altitude": 4.4,
+      "pitch": -90.0,
+      "gimbalYaw": 131.2
+    },
+    {
+      "id": "0009",
+      "seconds": 66.0,
+      "north": -0.658,
+      "east": -1.26,
+      "altitude": 4.4,
+      "pitch": -18.3,
+      "gimbalYaw": 131.2
+    },
+    {
+      "id": "0010",
+      "seconds": 94.0,
+      "north": -1.541,
+      "east": -3.066,
+      "altitude": 4.4,
+      "pitch": 0.0,
+      "gimbalYaw": 131.2
+    },
+    {
+      "id": "0011",
+      "seconds": 97.0,
+      "north": -1.513,
+      "east": -3.032,
+      "altitude": 5.5,
+      "pitch": 0.0,
+      "gimbalYaw": 131.2
+    },
+    {
+      "id": "0012",
+      "seconds": 100.0,
+      "north": -1.544,
+      "east": -2.949,
+      "altitude": 7.7,
+      "pitch": 0.0,
+      "gimbalYaw": 131.2
+    },
+    {
+      "id": "0013",
+      "seconds": 103.0,
+      "north": -1.557,
+      "east": -3.134,
+      "altitude": 10.5,
+      "pitch": 0.0,
+      "gimbalYaw": 131.2
+    },
+    {
+      "id": "0015",
+      "seconds": 128.0,
+      "north": -5.421,
+      "east": -7.562,
+      "altitude": 10.7,
+      "pitch": 0.0,
+      "gimbalYaw": 131.0
+    },
+    {
+      "id": "0016",
+      "seconds": 165.0,
+      "north": -8.528,
+      "east": -4.644,
+      "altitude": 12.3,
+      "pitch": 0.0,
+      "gimbalYaw": 131.0
+    },
+    {
+      "id": "0017",
+      "seconds": 172.0,
+      "north": -8.423,
+      "east": -4.524,
+      "altitude": 9.0,
+      "pitch": 0.0,
+      "gimbalYaw": 131.0
+    }
+  ]
+}
