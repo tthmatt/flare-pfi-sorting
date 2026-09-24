@@ -1,5 +1,9 @@
 import { getDisplayPath } from './files.js';
 
+export function groupingOrder(analyses, settings) {
+  return settings.inferAltitudeTurns || analyses.some((item) => item.markerOverride === 'split') ? 'capture' : settings.sortBy;
+}
+
 export function sortAnalyses(analyses, sortBy) {
   return [...analyses].sort((a, b) => {
     if (sortBy === 'capture') {

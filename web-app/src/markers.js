@@ -4,6 +4,6 @@ export function isMarkerPitch(pitch, markerPitch, tolerance) {
 
 export function isMarkerImage(item, settings) {
   if (item.markerOverride === 'marker') return true;
-  if (item.markerOverride === 'normal') return false;
+  if (item.markerOverride === 'normal' || item.markerOverride === 'split') return false;
   return isMarkerPitch(item.pitch, settings.markerPitch ?? -90, settings.tolerance ?? 2);
 }

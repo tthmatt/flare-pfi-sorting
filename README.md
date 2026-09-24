@@ -2,7 +2,13 @@ https://flare-pfi-sorting.vercel.app/
 
 # Flare PFI Sorting
 
-**Current browser app version:** 0.3.7
+**Current browser app version:** 0.4.0
+
+The browser app now offers optional **Visual pass suggestions** for missed
+markers between vertical inspection passes. Review and accept each suggested
+boundary; the first inspection photo stays in the output even when marker photos
+are skipped. This is an experimental local photo/telemetry workflow, not yet a
+fully automatic replacement for markers. See the [visual review workflow](web-app/README.md#visual-pass-suggestions-experimental).
 
 For photos with unreliable recorded gimbal pitch (including downward views recorded
 as `0°`), the browser preview now supports reversible **Start folder here (marker)**
