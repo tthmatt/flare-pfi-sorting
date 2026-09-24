@@ -11,8 +11,12 @@ import { createCalibrationReport } from './calibration.js';
 import { analysisProgress, analysisSummary, logStatus } from './telemetry.js';
 import { analyzeVisualPasses } from './visualAnalysis.js';
 
-const APP_VERSION = '0.4.0';
+const APP_VERSION = '0.4.1';
 const CHANGELOG = [
+  {
+    version: '0.4.1', date: '2026-09-24',
+    changes: ['Moved the optional altitude fallback and tolerance into collapsed Advanced settings, with the fallback off by default.'],
+  },
   {
     version: '0.4.0', date: '2026-09-24',
     changes: ['Added optional, local visual pass suggestions with accept, move, dismiss and undo controls.', 'Added folder starts that retain inspection photos when marker photos are skipped.'],
@@ -312,16 +316,8 @@ export default function App() {
           </label>
           {hasInspectionSplits && <p className="review-help">Inspection splits use capture-time order. Reset those corrections to choose another order.</p>}
           <label className="check-row">
-            <input type="checkbox" checked={settings.inferAltitudeTurns} onChange={(event) => updateSetting('inferAltitudeTurns', event.target.checked)} />
-            Infer missed altitude turns
-          </label>
-          <label className="check-row">
             <input type="checkbox" checked={settings.proposeGpsTurns} onChange={(event) => updateSetting('proposeGpsTurns', event.target.checked)} />
             Show experimental GPS turn proposals — does not change folders
-          </label>
-          <label>
-            Altitude reversal tolerance (metres)
-            <input type="number" min="0" step="0.05" value={settings.altitudeTolerance} onChange={(event) => updateSetting('altitudeTolerance', Math.max(0, Number.parseFloat(event.target.value) || 0))} />
           </label>
           <label className="check-row">
             <input type="checkbox" checked={settings.keepFolderPaths} onChange={(event) => updateSetting('keepFolderPaths', event.target.checked)} />
@@ -335,6 +331,20 @@ export default function App() {
             <input type="checkbox" checked={settings.removeCsvReport} onChange={(event) => updateSetting('removeCsvReport', event.target.checked)} />
             Remove CSV report from sorted ZIP
           </label>
+
+          <details className="advanced-settings">
+            <summary>Advanced settings{settings.inferAltitudeTurns && <span className="advanced-active">Altitude fallback on</span>}</summary>
+            <p className="review-help">Automatically split folders using altitude patterns. This fallback can help when GPS or camera-direction data is missing.</p>
+            <p className="review-help">Leave this option off when using Visual pass suggestions. Visual mode checks altitude independently.</p>
+            <label className="check-row">
+              <input type="checkbox" checked={settings.inferAltitudeTurns} onChange={(event) => updateSetting('inferAltitudeTurns', event.target.checked)} />
+              Infer missed altitude turns
+            </label>
+            <label>
+              Altitude reversal tolerance (metres)
+              <input type="number" min="0" step="0.05" value={settings.altitudeTolerance} onChange={(event) => updateSetting('altitudeTolerance', Math.max(0, Number.parseFloat(event.target.value) || 0))} />
+            </label>
+          </details>
 
           <h2>Output</h2>
           <div className="button-grid">

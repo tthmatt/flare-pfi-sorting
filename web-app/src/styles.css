@@ -189,6 +189,11 @@ h2 {
 }
 
 .controls fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.advanced-settings { border: 1px solid var(--line); border-radius: 12px; margin-top: 18px; padding: 14px; }
+.advanced-settings summary { cursor: pointer; font-weight: 800; line-height: 1.5; }
+.advanced-settings summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; border-radius: 2px; }
+.advanced-active { display: inline-block; margin-left: 8px; font-size: .8rem; }
+.advanced-settings > label:last-child { margin-bottom: 0; }
 .review-help { color: var(--muted); margin-top: 14px; line-height: 1.5; }
 .review-toolbar { display: flex; align-items: end; gap: 16px; flex-wrap: wrap; }
 .review-toolbar label { flex: 1 1 240px; }

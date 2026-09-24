@@ -1,6 +1,6 @@
 # Drone Image Sorter Web App
 
-**Current version:** 0.4.0
+**Current version:** 0.4.1
 
 Browser-based version of the PFI drone inspection image sorter for deployment on Vercel or any static hosting provider.
 
@@ -14,6 +14,19 @@ Browser-based version of the PFI drone inspection image sorter for deployment on
 - Generates a ZIP download containing the sorted folder structure and a `sort_report.csv` audit file.
 
 Images are not uploaded to a server by this app.
+
+## Advanced settings
+
+**Infer missed altitude turns** and **Altitude reversal tolerance (metres)** are
+inside **Advanced settings** in the sidebar. The section starts collapsed and
+altitude inference remains off by default. Enable it when you want automatic
+altitude-based fallback splitting, including when GPS or camera-direction data
+is unavailable. An **Altitude fallback on** label remains visible in the section
+summary if you enable the fallback and collapse the section.
+
+Leave the fallback off for the visual review workflow. **Visual pass suggestions**
+checks altitude independently of this option. Collapsing Advanced settings keeps
+your current choices; reloading the app restores its defaults.
 
 ## Visual pass suggestions (experimental)
 
@@ -122,6 +135,12 @@ Import this GitHub repository into Vercel and use these settings:
 
 
 ## Changelog
+
+### 0.4.1 - 2026-09-24
+
+- Moved altitude inference and its tolerance into collapsed Advanced settings.
+- Kept altitude inference off by default and explained its independence from visual suggestions.
+- Kept an active fallback indicator visible when Advanced settings is collapsed.
 
 ### 0.4.0 - 2026-09-24
 
