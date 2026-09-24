@@ -1,6 +1,6 @@
 # Drone Image Sorter Web App
 
-**Current version:** 0.4.4
+**Current version:** 0.4.5
 
 Browser-based version of the PFI drone inspection image sorter for deployment on Vercel or any static hosting provider.
 
@@ -102,6 +102,19 @@ that suggestion and reports the count for manual review. This stricter image
 requirement keeps small GPS shifts and camera tilts alone from creating proposals.
 Suggestions still require acceptance before any folder changes.
 
+**Tilted return pass** covers an established ascent/descent followed by a sideways
+move and camera tilts in the opposite vertical direction at steady height. It
+retains the 2 m sideways minimum and requires a stable position in the new column.
+Normally, at least three inspection photos must show two deliberate tilt steps
+spanning 20°. A short pass of two inspection photos can qualify when their tilt
+changes by at least 10° and the next record is a separate marker at the same
+position, heading and height within 60 seconds. The marker does not supply a tilt
+step and remains its own folder boundary. A cropped two-photo ending without a
+marker, a small tilt adjustment, and an unestablished prior flight do not qualify.
+As with altitude-based suggestions, incompatible camera views leave the image
+check explicitly inconclusive; review the photos before accepting this metadata
+suggestion.
+
 Candidate JPG/PNG pairs are decoded sequentially in a Web Worker into thumbnails
 no larger than 480 pixels. Distinct normalised patches in the lower image region
 are matched and checked for consistent sideways movement. Excluding the upper
@@ -132,6 +145,12 @@ are at 4.2 m, and the move before `0024` is about 1.26 m sideways. The old rule
 rejected both the small move and the lack of altitude reversal. The new sweep
 rule proposes only `0024`, uses `0020`/`0026` for image comparison and produces two
 three-photo folders when accepted. Its fixture also contains only relative motion.
+The short tilted-return sample climbs through `0074`, moves about 3.49 m sideways
+to `0076`, and tilts from −32.9° to −47.8° through `0077` at 11.5 m height. The next
+photo, `0078`, is a separate marker. Accepting the sole `0076` suggestion creates
+five-photo and two-photo inspection folders with markers skipped, or 5/2/1 when
+retaining `0078`. The image check is inconclusive because the camera angles do
+not align. This sample is also stored only as redacted relative-motion telemetry.
 These limited samples do not establish general accuracy or Mavic 2 support.
 The Python CLI is unchanged.
 
@@ -191,6 +210,13 @@ Import this GitHub repository into Vercel and use these settings:
 
 
 ## Changelog
+
+### 0.4.5 - 2026-09-24
+
+- Detect established vertical flights followed by tilted return passes after a sideways move.
+- Support short two-photo inspection passes ending at a separate marker, without using the marker as tilt evidence.
+- Explain the mixed flight/tilt evidence and keep incompatible image comparisons explicitly inconclusive.
+- Add redacted telemetry and regression coverage for the missing boundary before `0076`.
 
 ### 0.4.4 - 2026-09-24
 

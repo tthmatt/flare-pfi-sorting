@@ -12,8 +12,12 @@ import { analysisProgress, analysisSummary, logStatus } from './telemetry.js';
 import { analyzeVisualPasses } from './visualAnalysis.js';
 import { buildPreviewMovements } from './previewMovement.js';
 
-const APP_VERSION = '0.4.4';
+const APP_VERSION = '0.4.5';
 const CHANGELOG = [
+  {
+    version: '0.4.5', date: '2026-09-24',
+    changes: ['Detect a sideways move from a vertical flight into a tilted return pass, including two inspection photos ending at a separate marker.', 'Keep incompatible camera views explicitly inconclusive and preserve the later marker boundary.'],
+  },
   {
     version: '0.4.4', date: '2026-09-24',
     changes: ['Detect reversed camera sweeps at steady height after a persistent sideways move, with image confirmation required for these suggestions.'],
@@ -459,8 +463,9 @@ function VisualPassPanel({ result, working, disabled, analyses, movements, overr
     {proposal && <article className="proposal-item">
       <p><strong>Suggestion {active + 1} of {result.proposals.length}</strong> · {accepted ? 'Accepted' : dismissed.has(proposal.file) ? 'Dismissed' : 'Needs review'}</p>
       <strong>Start next folder at {getFileName(proposal.file)}</strong>
-      <p>{proposal.passEvidence === 'camera-sweep' ? `Camera sweep ${proposal.priorDirection} → ${proposal.nextDirection}` : proposal.priorDirection ? `${proposal.priorDirection} → ${proposal.nextDirection} evidence` : `${proposal.nextDirection === 'up' ? 'Ascent' : 'Descent'} after sideways move`} · sideways GPS shift about {Math.abs(proposal.lateralMeters).toFixed(1)} m · altitude change {proposal.altitudeDelta.toFixed(1)} m.</p>
+      <p>{proposal.passEvidence === 'camera-sweep' ? `Camera sweep ${proposal.priorDirection} → ${proposal.nextDirection}` : proposal.passEvidence === 'tilted-return' ? `${proposal.priorDirection === 'up' ? 'Ascent' : 'Descent'} → camera tilt ${proposal.nextDirection}` : proposal.priorDirection ? `${proposal.priorDirection} → ${proposal.nextDirection} evidence` : `${proposal.nextDirection === 'up' ? 'Ascent' : 'Descent'} after sideways move`} · sideways GPS shift about {Math.abs(proposal.lateralMeters).toFixed(1)} m · altitude change {proposal.altitudeDelta.toFixed(1)} m.</p>
       {proposal.passEvidence === 'camera-sweep' && <p><strong>Camera sweep at steady height.</strong> This suggestion uses reversed camera tilts, stable GPS positions and supporting image matches. The drone does not need to climb or descend.</p>}
+      {proposal.passEvidence === 'tilted-return' && <p><strong>Tilted return pass.</strong> After the sideways move, the camera tilts back along the next column while the drone stays near the same height. Check the photos before accepting; a later marker remains a separate folder boundary.</p>}
       {proposal.passEvidence === 'partial' && <p><strong>Limited altitude evidence.</strong> Nearby photos do not show a complete preceding vertical pass. Check that the sideways move starts a new inspection column before accepting.</p>}
       {proposal.comparisonBeforeFile && (proposal.comparisonBeforeIndex !== proposal.beforeIndex || proposal.comparisonAfterIndex !== proposal.boundaryIndex)
         && <p>Similar-angle photos used for comparison: {getFileName(proposal.comparisonBeforeFile)} and {getFileName(proposal.comparisonAfterFile)}. The suggested folder start remains {getFileName(proposal.file)}.</p>}

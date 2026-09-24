@@ -2,7 +2,7 @@ https://flare-pfi-sorting.vercel.app/
 
 # Flare PFI Sorting
 
-**Current browser app version:** 0.4.4
+**Current browser app version:** 0.4.5
 
 The optional altitude fallback is available under collapsed **Advanced settings**
 and stays off by default. Visual pass suggestions check altitude independently.
@@ -20,6 +20,11 @@ at similar camera angles may be compared without moving the proposed folder star
 Version 0.4.4 also detects reversed camera tilt sweeps at steady height, including
 the missed boundary before `0024`. These smaller sideways transitions require
 stable GPS positions and supporting image matches before they are suggested.
+
+Version 0.4.5 supports a vertical flight followed by a tilted return pass in the
+next column, including the two inspection photos beginning at `0076`. A later
+marker stays separate, and suggestions with incompatible views clearly report
+an inconclusive image check.
 
 For photos with unreliable recorded gimbal pitch (including downward views recorded
 as `0°`), the browser preview now supports reversible **Start folder here (marker)**

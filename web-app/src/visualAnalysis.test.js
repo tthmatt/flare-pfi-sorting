@@ -5,6 +5,7 @@ import { analyzeVisualPasses } from './visualAnalysis.js';
 
 const fixture = JSON.parse(readFileSync(new URL('../test-support/visual-pass-pitch-adjustment.json', import.meta.url)));
 const sweepFixture = JSON.parse(readFileSync(new URL('../test-support/visual-pass-camera-sweep.json', import.meta.url)));
+const shortTiltFixture = JSON.parse(readFileSync(new URL('../test-support/visual-pass-short-tilted-return.json', import.meta.url)));
 const sample = () => fixture.rows.slice(8).map((r) => ({ ...r,
   file: { name: `${r.id}.jpg` }, captureDate: new Date(r.seconds * 1000), altitudeSource: 'relative',
   latitude: r.north / 6371000 * 180 / Math.PI, longitude: r.east / 6371000 * 180 / Math.PI,
@@ -90,5 +91,23 @@ test('mixed sessions count every checked pair and retain ordinary altitude propo
   assert.equal(result.proposals[0].visual.supported, false);
   assert.equal(result.reasons['camera-sweep-visual-inconclusive'], 1);
   assert.deepEqual(progress, [[1, 2], [2, 2]]);
+  assert.equal(state.terminated, true);
+});
+
+test('a short tilted return remains a metadata suggestion without comparing incompatible views', async (t) => {
+  const state = mockWorker(t, [{ supported: false, reason: 'no-comparable-photos' }]);
+  const rows = shortTiltFixture.rows.map((r) => ({ ...r,
+    file: { name: `${r.id}.jpg` }, captureDate: new Date(r.seconds * 1000), altitudeSource: 'relative',
+    latitude: r.north / 6371000 * 180 / Math.PI, longitude: r.east / 6371000 * 180 / Math.PI,
+  }));
+  const result = await analyzeVisualPasses(rows, {});
+  assert.equal(state.jobs.length, 1);
+  assert.equal(state.jobs[0].before, undefined);
+  assert.equal(state.jobs[0].after, undefined);
+  assert.equal(result.proposals.length, 1);
+  assert.equal(result.proposals[0].file, rows[5].file);
+  assert.equal(result.proposals[0].passEvidence, 'tilted-return');
+  assert.equal(result.proposals[0].visual.supported, false);
+  assert.equal(result.proposals[0].visual.reason, 'no-comparable-photos');
   assert.equal(state.terminated, true);
 });
