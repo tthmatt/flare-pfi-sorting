@@ -2,7 +2,11 @@ https://flare-pfi-sorting.vercel.app/
 
 # Flare PFI Sorting
 
-**Current browser app version:** 0.4.6
+**Current browser app version:** 0.5.0
+
+Version 0.5.0 adds a desktop review workspace with a compact settings sidebar,
+clickable folder plan, photo filters, expanded image viewer, and a persistent ZIP
+export bar. See the [desktop workspace guide](web-app/README.md#desktop-review-workspace).
 
 The optional altitude fallback is available under collapsed **Advanced settings**
 and stays off by default. Visual pass suggestions check altitude independently.
