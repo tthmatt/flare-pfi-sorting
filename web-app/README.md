@@ -1,6 +1,6 @@
 # Drone Image Sorter Web App
 
-**Current version:** 0.4.2
+**Current version:** 0.4.3
 
 Browser-based version of the PFI drone inspection image sorter for deployment on Vercel or any static hosting provider.
 
@@ -14,6 +14,23 @@ Browser-based version of the PFI drone inspection image sorter for deployment on
 - Generates a ZIP download containing the sorted folder structure and a `sort_report.csv` audit file.
 
 Images are not uploaded to a server by this app.
+
+## Sideways movement in image previews
+
+After **Analyze images**, each photo preview shows its sideways GPS displacement
+in metres, with left/right relative to the preceding photo's camera heading.
+The reference filename is displayed below the value. This is a GPS estimate,
+not a measurement of movement of building details within the image.
+
+Comparisons use consecutive photos with valid capture times across the complete
+selection, including skipped markers. Search, pagination, display sort order
+and folder corrections do not change the reference photo. Photos without valid
+capture times are excluded from comparisons; tied timestamps, missing GPS and
+missing reference camera direction show an explicit unavailable state. The first
+timed photo is labelled rather than displaying a false zero.
+
+Values also appear on visual-pass and experimental GPS-proposal preview cards.
+This display does not change pass detection, folder decisions, CSV or ZIP output.
 
 ## Advanced settings
 
@@ -153,6 +170,11 @@ Import this GitHub repository into Vercel and use these settings:
 
 
 ## Changelog
+
+### 0.4.3 - 2026-09-24
+
+- Display sideways GPS movement, left/right direction and the reference photo in all image previews.
+- Keep comparisons tied to capture order and label unavailable telemetry explicitly.
 
 ### 0.4.2 - 2026-09-24
 

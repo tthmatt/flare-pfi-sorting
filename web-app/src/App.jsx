@@ -10,9 +10,14 @@ import { downloadBlob, makeZip } from './reports.js';
 import { createCalibrationReport } from './calibration.js';
 import { analysisProgress, analysisSummary, logStatus } from './telemetry.js';
 import { analyzeVisualPasses } from './visualAnalysis.js';
+import { buildPreviewMovements } from './previewMovement.js';
 
-const APP_VERSION = '0.4.2';
+const APP_VERSION = '0.4.3';
 const CHANGELOG = [
+  {
+    version: '0.4.3', date: '2026-09-24',
+    changes: ['Show GPS-based sideways movement and left/right direction on image previews, with the previous capture-time photo identified.'],
+  },
   {
     version: '0.4.2', date: '2026-09-24',
     changes: ['Suggest persistent sideways moves in partial pass sequences and allow camera pitch adjustments.', 'Use nearby photos at similar camera angles for visual comparison, keeping the proposed folder start at the first photo after the move.'],
@@ -156,6 +161,7 @@ export default function App() {
   const reviewedAnalyses = useMemo(() => analyses.map((item) => ({ ...item, markerOverride: markerOverrides.get(item.file) ?? 'auto' })), [analyses, markerOverrides]);
   const { groups, skippedMarkerCount } = useMemo(() => buildGroups(reviewedAnalyses, settings), [reviewedAnalyses, settings]);
   const captureOrderedAnalyses = useMemo(() => sortAnalyses(reviewedAnalyses, 'capture'), [reviewedAnalyses]);
+  const previewMovements = useMemo(() => buildPreviewMovements(analyses), [analyses]);
   const { proposals: turnCandidates, reasonCounts: turnReasonCounts } = useMemo(() => settings.proposeGpsTurns
     ? analyzeGpsTurns(captureOrderedAnalyses, settings) : { proposals: [], reasonCounts: {} }, [captureOrderedAnalyses, settings]);
   const unknownPitchCount = useMemo(() => analyses.filter((item) => item.pitch === null).length, [analyses]);
@@ -378,9 +384,9 @@ export default function App() {
 
           {analyses.length > 0 && <TelemetryCoverage analyses={analyses} />}
           {analyses.length > 0 && <VisualPassPanel result={visualResult} working={visualWorking} disabled={isWorking}
-            analyses={captureOrderedAnalyses} overrides={markerOverrides} onAnalyze={handleVisualAnalyze}
+            analyses={captureOrderedAnalyses} movements={previewMovements} overrides={markerOverrides} onAnalyze={handleVisualAnalyze}
             onCancel={() => visualController.current?.abort()} onOverride={setMarkerOverride} />}
-          {analyses.length > 0 && settings.proposeGpsTurns && <TurnProposalPanel key={calibrationKey} proposals={turnCandidates} reasons={turnReasonCounts} analyses={captureOrderedAnalyses} settings={settings} />}
+          {analyses.length > 0 && settings.proposeGpsTurns && <TurnProposalPanel key={calibrationKey} proposals={turnCandidates} reasons={turnReasonCounts} analyses={captureOrderedAnalyses} movements={previewMovements} settings={settings} />}
 
           <section className="panel">
             <div className="panel-heading">
@@ -392,7 +398,7 @@ export default function App() {
               : <EmptyState />}
           </section>
 
-          {analyses.length > 0 && <Preview analyses={reviewedAnalyses} groups={groups} settings={settings} onOverride={setMarkerOverride} onReset={resetMarkerOverrides} overrideCount={markerOverrides.size} disabled={isWorking} />}
+          {analyses.length > 0 && <Preview analyses={reviewedAnalyses} groups={groups} settings={settings} movements={previewMovements} onOverride={setMarkerOverride} onReset={resetMarkerOverrides} overrideCount={markerOverrides.size} disabled={isWorking} />}
 
           <Changelog />
         </section>
@@ -414,7 +420,7 @@ const VISUAL_REASON_LABELS = {
   'ambiguous-visual-motion': 'Matched details do not establish a consistent sideways shift.',
 };
 
-function VisualPassPanel({ result, working, disabled, analyses, overrides, onAnalyze, onCancel, onOverride }) {
+function VisualPassPanel({ result, working, disabled, analyses, movements, overrides, onAnalyze, onCancel, onOverride }) {
   const [active, setActive] = useState(0);
   const [dismissed, setDismissed] = useState(() => new Set());
   const [chosen, setChosen] = useState(null);
@@ -457,6 +463,7 @@ function VisualPassPanel({ result, working, disabled, analyses, overrides, onAna
         <span>{start + offset === boundaryIndex ? 'NEW FOLDER START' : start + offset < boundaryIndex ? 'Before boundary' : 'After boundary'}</span>
         <ImageThumbnail file={item.file} /><strong>{getFileName(item.file)}</strong>
         <span>{formatAltitude(item.altitude)} · pitch {formatPitch(item.pitch)}</span>
+        <SidewaysMovement movement={movements.get(item.file)} />
       </article>)}</div>
       <label>First inspection photo of the new pass
         <select aria-label="First inspection photo of the new pass" value={boundaryIndex} disabled={disabled || accepted} onChange={(event) => setChosen(Number(event.target.value))}>
@@ -479,7 +486,7 @@ function VisualPassPanel({ result, working, disabled, analyses, overrides, onAna
   </section>;
 }
 
-function TurnProposalPanel({ proposals, reasons, analyses, settings }) {
+function TurnProposalPanel({ proposals, reasons, analyses, movements, settings }) {
   const [active, setActive] = useState(0); const [decisions, setDecisions] = useState({});
   const [moveIndex, setMoveIndex] = useState(null); const [missedIndex, setMissedIndex] = useState('');
   const [missed, setMissed] = useState([]); const [fullReview, setFullReview] = useState(false);
@@ -511,6 +518,7 @@ function TurnProposalPanel({ proposals, reasons, analyses, settings }) {
           <span>Evidence {proposal.evidenceStartFile}→{proposal.evidenceEndFile} • detected at {proposal.detectedAtFile}</span>
           <div className="preview-grid">{window.map((item, offset) => { const index = start + offset; return <article className="preview-card" key={item.file.name}>
             <ImageThumbnail file={item.file} /><strong>{item.file.name}</strong><span>#{index} • {formatPitch(item.pitch)}</span><span>{formatAltitude(item.altitude)} • {item.altitudeSource ?? 'unknown source'}</span>
+            <SidewaysMovement movement={movements.get(item.file)} />
           </article>; })}</div>
           <div className="button-grid"><button type="button" onClick={() => decide('confirmed')}>Correct boundary</button><button type="button" className="secondary" onClick={() => decide('rejected')}>Wrong proposal</button><button type="button" className="secondary" onClick={() => setMoveIndex(proposal.boundaryIndex)}>Move boundary</button></div>
           {moveIndex !== null && <div><select value={moveIndex} onChange={(event) => setMoveIndex(Number(event.target.value))}>{window.map((item, offset) => <option key={item.file.name} value={start + offset}>{item.file.name}</option>)}</select><button type="button" onClick={() => decide('moved', moveIndex)}>Save moved boundary</button></div>}
@@ -602,7 +610,7 @@ function FolderTable({ groups }) {
   );
 }
 
-function Preview({ analyses, groups, settings, onOverride, onReset, overrideCount, disabled }) {
+function Preview({ analyses, groups, settings, movements, onOverride, onReset, overrideCount, disabled }) {
   const [visibleCount, setVisibleCount] = useState(100);
   const [search, setSearch] = useState('');
   const items = useMemo(() => buildReviewItems(analyses, groups, settings), [analyses, groups, settings]);
@@ -616,6 +624,7 @@ function Preview({ analyses, groups, settings, onOverride, onReset, overrideCoun
       </div>
       <p className="review-help">Use “Start folder here (keep photo)” for the first inspection photo of a new pass. Use the marker option for a downward marker with incorrect recorded pitch. “Keep in current folder” prevents a split at that photo. Corrections update folders and the ZIP immediately.</p>
       <p className="review-help">Skipped markers stay visible here. Corrections are kept when you re-analyze, and cleared when you choose new files or reload the page.</p>
+      <p className="review-help">Sideways movement is a GPS estimate from the previous photo with a valid capture time, including skipped markers. Left/right is relative to that photo’s camera heading. Search and display order do not change the comparison.</p>
       <div className="review-toolbar">
         <label>Find a photo<input type="search" value={search} onChange={(event) => { setSearch(event.target.value); setVisibleCount(100); }} placeholder="Filename or folder path" /></label>
         <button type="button" className="secondary" disabled={disabled || !overrideCount} onClick={onReset}>Reset all corrections ({overrideCount})</button>
@@ -629,6 +638,7 @@ function Preview({ analyses, groups, settings, onOverride, onReset, overrideCoun
             {getDisplayPath(item.file) !== getFileName(item.file) && <span>{getDisplayPath(item.file)}</span>}
             <span>{item.groupName ?? 'Skipped marker — excluded from ZIP'}</span>
             <span>Recorded pitch: {formatPitch(item.pitch)} • altitude {formatAltitude(item.altitude)}</span>
+            <SidewaysMovement movement={movements.get(item.file)} />
             {item.startReason && <span>Folder start: {item.startReason}</span>}
             <label>Folder decision
               <select aria-label={`Folder decision for ${getDisplayPath(item.file)}`} value={item.markerOverride} disabled={disabled} onChange={(event) => onOverride(item.file, event.target.value)}>
@@ -648,6 +658,27 @@ function Preview({ analyses, groups, settings, onOverride, onReset, overrideCoun
       </div>}
     </section>
   );
+}
+
+const MOVEMENT_REASON_LABELS = {
+  'first-photo': 'First photo with capture time',
+  'missing-time': 'Unavailable — capture time missing',
+  'ambiguous-time': 'Unavailable — capture times are tied',
+  'missing-heading': 'Unavailable — previous camera direction missing',
+  'missing-gps': 'Unavailable — GPS missing or invalid',
+};
+
+function SidewaysMovement({ movement }) {
+  let label = MOVEMENT_REASON_LABELS[movement?.reason] ?? 'Unavailable';
+  if (Number.isFinite(movement?.meters)) {
+    const distance = Math.abs(movement.meters).toFixed(2);
+    const direction = Number(distance) === 0 ? '' : movement.meters > 0 ? ' right' : ' left';
+    label = `${distance} m${direction} (GPS estimate)`;
+  }
+  return <>
+    <span className="sideways-movement">Sideways movement: {label}</span>
+    {movement?.previousFile && <span className="movement-reference">From {getDisplayPath(movement.previousFile)}</span>}
+  </>;
 }
 
 function ImageThumbnail({ file }) {
