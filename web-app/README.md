@@ -1,6 +1,6 @@
 # Drone Image Sorter Web App
 
-**Current version:** 0.4.3
+**Current version:** 0.4.4
 
 Browser-based version of the PFI drone inspection image sorter for deployment on Vercel or any static hosting provider.
 
@@ -47,8 +47,8 @@ your current choices; reloading the app restores its defaults.
 
 ## Visual pass suggestions (experimental)
 
-For one folder per vertical up/down inspection pass, a missed pitch marker can
-now be reviewed using ordinary inspection photos:
+For one folder per inspection column, including vertical flights and camera tilt
+sweeps at steady height, a missed pitch marker can be reviewed using ordinary photos:
 
 1. Select the original photos and click **Analyze images**.
 2. Under **Visual pass suggestions**, click **Find pass boundaries**.
@@ -67,7 +67,8 @@ file selections or a page reload. Undo restores any prior decision on that photo
 
 The detector first checks consecutive capture-time records for predominantly
 sideways displacement relative to **gimbal yaw**, compatible relative/absolute
-altitude, stable camera heading, and vertical-pass evidence around the move.
+altitude, stable camera heading, and vertical-pass or reversed camera-sweep evidence
+around the move.
 Missing metadata is not treated as zero. It rejects forward approaches, tilting
 without sideways movement, inconsistent altitude sources, GPS jumps that do not
 persist, and nearby existing markers. Thresholds are experimental, not calibrated
@@ -85,6 +86,21 @@ These can produce a **Limited altitude evidence** suggestion when GPS shows a
 persistent sideways move and at least three following photos show vertical
 movement in the new column. A missing preceding direction is never invented.
 These weaker suggestions still require operator acceptance and can be wrong.
+
+**Camera sweep at steady height** covers a different pattern: the drone stays at
+one height while the camera tilts down a column, moves sideways, then tilts up the
+next column (or the reverse). Each side needs at least three photos with two
+deliberate tilt steps of at least 5° and a pitch span of at least 20°. The combined
+height range must stay within 0.75 m. The sideways move must be at least 1 m and
+twice the forward movement; horizontal drift within either sweep must stay below
+one sixth of that sideways move. Ordinary altitude-pass suggestions still need
+at least 2 m sideways movement.
+
+Camera sweeps compare the closest matching camera angles and **require supporting
+image matches** before a suggestion appears. An inconclusive image check omits
+that suggestion and reports the count for manual review. This stricter image
+requirement keeps small GPS shifts and camera tilts alone from creating proposals.
+Suggestions still require acceptance before any folder changes.
 
 Candidate JPG/PNG pairs are decoded sequentially in a Web Worker into thumbnails
 no larger than 480 pixels. Distinct normalised patches in the lower image region
@@ -111,6 +127,11 @@ Additional excerpts cover the removed-marker boundaries before `0062` and `0070`
 including pitch adjustments and a short preceding descent. Their combined
 sequence proposes only those two boundaries. The image comparison can remain
 inconclusive even when GPS and altitude support a review suggestion.
+The steady-height sample covers `0020–0022` followed by `0024–0026`: all six photos
+are at 4.2 m, and the move before `0024` is about 1.26 m sideways. The old rule
+rejected both the small move and the lack of altitude reversal. The new sweep
+rule proposes only `0024`, uses `0020`/`0026` for image comparison and produces two
+three-photo folders when accepted. Its fixture also contains only relative motion.
 These limited samples do not establish general accuracy or Mavic 2 support.
 The Python CLI is unchanged.
 
@@ -170,6 +191,13 @@ Import this GitHub repository into Vercel and use these settings:
 
 
 ## Changelog
+
+### 0.4.4 - 2026-09-24
+
+- Detect reversed camera tilt sweeps at steady height after a persistent sideways move.
+- Require stable GPS clusters and supporting image matches for these smaller transitions.
+- Explain camera-sweep suggestions and report sweeps lacking image support for manual review.
+- Add a redacted regression fixture for the missing boundary before `0024`.
 
 ### 0.4.3 - 2026-09-24
 

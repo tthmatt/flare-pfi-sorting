@@ -7,6 +7,7 @@ import { buildReviewItems } from './review.js';
 
 const fixture = JSON.parse(readFileSync(new URL('../test-support/visual-pass-calibration.json', import.meta.url)));
 const tiltFixture = JSON.parse(readFileSync(new URL('../test-support/visual-pass-pitch-adjustment.json', import.meta.url)));
+const sweepFixture = JSON.parse(readFileSync(new URL('../test-support/visual-pass-camera-sweep.json', import.meta.url)));
 function flight(source = fixture) {
   return source.rows.map((r) => ({ ...r, file: { name: `image_${r.id}.jpg`, size: 1 },
     latitude: r.north / 6371000 * 180 / Math.PI, longitude: r.east / 6371000 * 180 / Math.PI,
@@ -97,6 +98,88 @@ test('combined excerpts retain the 0062 suggestion and add only 0070', () => {
   assert.equal(candidates[0].comparisonAfterIndex, candidates[0].boundaryIndex);
   for (const c of candidates) rows[c.boundaryIndex].markerOverride = 'split';
   assert.deepEqual(buildGroups(rows, settings).groups.map((g) => g.files.length), [5, 7, 3]);
+});
+
+test('steady-height camera sweeps propose only 0024, require image support and keep the inspection photo', () => {
+  const rows = flight(sweepFixture);
+  rows.forEach((row) => { row.file.name = 'same-name.jpg'; });
+  const { candidates } = findVisualPassCandidates(rows, settings);
+  assert.deepEqual(candidates.map((c) => rows[c.boundaryIndex].id), ['0024']);
+  const [candidate] = candidates;
+  assert.equal(candidate.passEvidence, 'camera-sweep');
+  assert.equal(candidate.requiresVisualSupport, true);
+  assert.equal(candidate.priorDirection, 'down');
+  assert.equal(candidate.nextDirection, 'up');
+  assert.ok(Math.abs(candidate.lateralMeters - 1.263) < 0.01);
+  assert.equal(candidate.altitudeDelta, 0);
+  assert.equal(rows[candidate.comparisonBeforeIndex].id, '0020');
+  assert.equal(rows[candidate.comparisonAfterIndex].id, '0026');
+  assert.equal(buildGroups(rows, settings).groups.length, 1);
+  rows[candidate.boundaryIndex].markerOverride = 'split';
+  assert.deepEqual(buildGroups(rows, settings).groups.map((g) => g.files.map((r) => r.id)),
+    [['0020', '0021', '0022'], ['0024', '0025', '0026']]);
+  rows[candidate.boundaryIndex].markerOverride = 'auto';
+  assert.equal(buildGroups(rows, settings).groups.length, 1);
+});
+
+test('surrounding altitude changes do not hide a complete camera sweep beside the boundary', () => {
+  const rows = flight(sweepFixture);
+  rows.unshift({ ...rows[0], id: 'earlier', altitude: 7, captureDate: new Date(-5000) });
+  rows.push({ ...rows.at(-1), id: 'later', altitude: 7, captureDate: new Date(31000) });
+  const { candidates } = findVisualPassCandidates(rows, settings);
+  assert.deepEqual(candidates.map((c) => rows[c.boundaryIndex].id), ['0024']);
+  assert.equal(rows[candidates[0].comparisonBeforeIndex].id, '0020');
+  assert.equal(rows[candidates[0].comparisonAfterIndex].id, '0026');
+});
+
+test('camera sweeps reject stationary tilts, small shifts, approaches and unstable GPS positions', () => {
+  const changes = {
+    stationary: (rows) => { for (const r of rows) { r.latitude = 0; r.longitude = 0; } },
+    'sub-metre shift': (rows) => { for (const r of rows) { r.latitude *= 0.5; r.longitude *= 0.5; } },
+    approach: (rows) => { for (const r of rows) r.gimbalYaw -= 90; },
+    'GPS jump': (rows) => { rows[4].latitude = rows[2].latitude; rows[4].longitude = rows[2].longitude; },
+    'horizontal drift': (rows) => { rows[4].latitude += 0.3 / 6371000 * 180 / Math.PI; },
+  };
+  for (const [label, change] of Object.entries(changes)) {
+    const rows = flight(sweepFixture); change(rows);
+    assert.equal(findVisualPassCandidates(rows, settings).candidates.length, 0, label);
+  }
+});
+
+test('camera sweeps need two deliberate reversed tilts on each side at steady height', () => {
+  const changes = {
+    'same direction': (rows) => { [-1, -20, -40].forEach((pitch, i) => { rows[i + 3].pitch = pitch; }); },
+    'small tilt': (rows) => { for (const r of rows) r.pitch /= 4; },
+    'single tilt': (rows) => { rows[1].pitch = rows[0].pitch; },
+    'backtracking tilt': (rows) => { rows[1].pitch = 10; },
+    'missing pitch': (rows) => { rows[1].pitch = null; },
+    'altitude change': (rows) => { rows[1].altitude += 0.8; },
+  };
+  for (const [label, change] of Object.entries(changes)) {
+    const rows = flight(sweepFixture); change(rows);
+    assert.equal(findVisualPassCandidates(rows, settings).candidates.length, 0, label);
+  }
+  assert.equal(findVisualPassCandidates(flight(sweepFixture).slice(1), settings).candidates.length, 0);
+  assert.equal(findVisualPassCandidates(flight(sweepFixture).slice(0, -1), settings).candidates.length, 0);
+});
+
+test('camera sweeps honor marker decisions and require consistent metadata', () => {
+  for (const change of [
+    (r) => { r[3].markerOverride = 'normal'; }, (r) => { r[3].markerOverride = 'split'; },
+    (r) => { r[2].pitch = -90; }, (r) => { r[2].markerOverride = 'marker'; },
+    (r) => { r[3].gimbalYaw += 15; }, (r) => { r[3].latitude = null; },
+    (r) => { r[3].altitudeSource = 'absolute'; }, (r) => { r[3].captureDate = null; },
+    (r) => { r[3].captureDate = new Date(r[2].captureDate.getTime() + 61000); },
+  ]) {
+    const rows = flight(sweepFixture); change(rows);
+    assert.equal(findVisualPassCandidates(rows, settings).candidates.length, 0);
+  }
+});
+
+test('a small sideways shift is not enough for ordinary altitude-pass suggestions', () => {
+  const rows = partialFlight();
+  for (const r of rows) { r.latitude *= 0.55; r.longitude *= 0.55; }
+  assert.equal(findVisualPassCandidates(rows, settings).candidates.length, 0);
 });
 
 test('partial evidence does not turn tilts, approaches, transient GPS jumps or horizontal-only moves into passes', () => {

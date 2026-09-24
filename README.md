@@ -2,13 +2,13 @@ https://flare-pfi-sorting.vercel.app/
 
 # Flare PFI Sorting
 
-**Current browser app version:** 0.4.3
+**Current browser app version:** 0.4.4
 
 The optional altitude fallback is available under collapsed **Advanced settings**
 and stays off by default. Visual pass suggestions check altitude independently.
 
 The browser app now offers optional **Visual pass suggestions** for missed
-markers between vertical inspection passes. Review and accept each suggested
+markers between inspection columns. Review and accept each suggested
 boundary; the first inspection photo stays in the output even when marker photos
 are skipped. This is an experimental local photo/telemetry workflow, not yet a
 fully automatic replacement for markers. See the [visual review workflow](web-app/README.md#visual-pass-suggestions-experimental).
@@ -16,6 +16,10 @@ fully automatic replacement for markers. See the [visual review workflow](web-ap
 Version 0.4.2 supports suggestions around camera pitch adjustments and short pass
 excerpts. Limited altitude evidence is labelled explicitly. Nearby photos taken
 at similar camera angles may be compared without moving the proposed folder start.
+
+Version 0.4.4 also detects reversed camera tilt sweeps at steady height, including
+the missed boundary before `0024`. These smaller sideways transitions require
+stable GPS positions and supporting image matches before they are suggested.
 
 For photos with unreliable recorded gimbal pitch (including downward views recorded
 as `0°`), the browser preview now supports reversible **Start folder here (marker)**
