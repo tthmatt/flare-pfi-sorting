@@ -2,7 +2,7 @@ https://flare-pfi-sorting.vercel.app/
 
 # Flare PFI Sorting
 
-**Current browser app version:** 0.4.2
+**Current browser app version:** 0.4.3
 
 The optional altitude fallback is available under collapsed **Advanced settings**
 and stays off by default. Visual pass suggestions check altitude independently.
