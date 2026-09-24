@@ -1,6 +1,6 @@
 # Drone Image Sorter Web App
 
-**Current version:** 0.4.1
+**Current version:** 0.4.2
 
 Browser-based version of the PFI drone inspection image sorter for deployment on Vercel or any static hosting provider.
 
@@ -50,10 +50,24 @@ file selections or a page reload. Undo restores any prior decision on that photo
 
 The detector first checks consecutive capture-time records for predominantly
 sideways displacement relative to **gimbal yaw**, compatible relative/absolute
-altitude, stable camera orientation, and vertical-pass evidence around the move.
-Missing metadata is not treated as zero. It rejects forward approaches, camera
-tilts, inconsistent altitude sources, GPS jumps that do not persist, and nearby
-existing markers. Thresholds are experimental, not calibrated confidence scores.
+altitude, stable camera heading, and vertical-pass evidence around the move.
+Missing metadata is not treated as zero. It rejects forward approaches, tilting
+without sideways movement, inconsistent altitude sources, GPS jumps that do not
+persist, and nearby existing markers. Thresholds are experimental, not calibrated
+confidence scores.
+
+Camera pitch can change while moving into the next column. If the adjacent
+photos have different camera angles, the detector looks within four photos on
+each side for a pair with similar pitch and height. The comparison photos are
+named in the suggestion, and the proposed folder start remains the first photo
+after the sideways move. If no compatible pair exists, the visual check is
+explicitly inconclusive; it does not compare incompatible views as if aligned.
+
+Short excerpts and level detail photos can hide the preceding ascent/descent.
+These can produce a **Limited altitude evidence** suggestion when GPS shows a
+persistent sideways move and at least three following photos show vertical
+movement in the new column. A missing preceding direction is never invented.
+These weaker suggestions still require operator acceptance and can be wrong.
 
 Candidate JPG/PNG pairs are decoded sequentially in a Web Worker into thumbnails
 no larger than 480 pixels. Distinct normalised patches in the lower image region
@@ -64,9 +78,9 @@ used for the visual check. The main thread remains available for cancellation.
 The worker is terminated on completion, cancellation, timeout or error.
 
 The first prototype needs capture times, GPS, gimbal yaw, pitch and consistent
-altitude, with overlapping views and an established pass followed by return-pass
-evidence. It can miss short/partial passes, same-direction passes, large camera
-changes, low-texture walls and repeated windows. TIFF/DNG, decode failures and
+altitude, with overlapping views and surrounding movement evidence. It can still
+miss very short excerpts, same-direction passes, large heading changes,
+low-texture walls and repeated windows. TIFF/DNG, decode failures and
 unsupported browser features are explicitly shown as inconclusive visual checks.
 An inconclusive comparison never becomes a visually supported claim. Candidate
 sessions are bounded to 200 pairs and individual files to 64 MiB; any unexamined
@@ -76,7 +90,11 @@ Calibration: the supplied three-pass sequence supports the missing boundary
 before photo `0015`. Its tilt/approach adjustments are useful negative examples.
 The redacted telemetry fixture preserves relative motion only; original images,
 absolute GPS coordinates, capture dates and camera identifiers are not committed.
-This one labelled flight does not establish general accuracy or Mavic 2 support.
+Additional excerpts cover the removed-marker boundaries before `0062` and `0070`,
+including pitch adjustments and a short preceding descent. Their combined
+sequence proposes only those two boundaries. The image comparison can remain
+inconclusive even when GPS and altitude support a review suggestion.
+These limited samples do not establish general accuracy or Mavic 2 support.
 The Python CLI is unchanged.
 
 ## Correcting unreliable gimbal pitch (including Mavic 2)
@@ -135,6 +153,12 @@ Import this GitHub repository into Vercel and use these settings:
 
 
 ## Changelog
+
+### 0.4.2 - 2026-09-24
+
+- Suggest persistent sideways moves despite pitch adjustments or limited preceding altitude evidence.
+- Compare nearby photos at similar camera angles without moving the first new-pass photo.
+- Label limited evidence and unavailable comparisons explicitly; folder changes still require acceptance.
 
 ### 0.4.1 - 2026-09-24
 

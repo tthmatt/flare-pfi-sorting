@@ -23,14 +23,16 @@ export async function analyzeVisualPasses(records, settings, { signal, onProgres
       worker.onmessage = ({ data }) => {
         const candidate = selected[data.index];
         result.proposals.push({ ...candidate, file: records[candidate.boundaryIndex].file,
-          beforeFile: records[candidate.beforeIndex].file, visual: data.visual });
+          beforeFile: records[candidate.beforeIndex].file,
+          comparisonBeforeFile: records[candidate.comparisonBeforeIndex]?.file ?? null,
+          comparisonAfterFile: records[candidate.comparisonAfterIndex]?.file ?? null, visual: data.visual });
         onProgress?.(result.proposals.length, selected.length);
         if (result.proposals.length === selected.length) { cleanup(); resolve(result); }
         else armWatchdog();
       };
       armWatchdog();
-      worker.postMessage(selected.map((candidate) => ({ before: records[candidate.beforeIndex].file,
-        after: records[candidate.boundaryIndex].file, lateralMeters: candidate.lateralMeters })));
+      worker.postMessage(selected.map((candidate) => ({ before: records[candidate.comparisonBeforeIndex]?.file,
+        after: records[candidate.comparisonAfterIndex]?.file, lateralMeters: candidate.lateralMeters })));
     } catch (error) { fail(error); }
   });
 }

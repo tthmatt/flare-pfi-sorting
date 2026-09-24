@@ -1,0 +1,140 @@
+{
+  "description": "Two overlapping operator-provided excerpts with missed markers before 0062 and 0070. Relative positions and times only; no original images, absolute GPS, timestamps or camera identifiers. The short second excerpt starts at 0065 and shows only 0.7 m of the preceding descent, followed by camera tilts and a persistent sideways move.",
+  "rows": [
+    {
+      "id": "0056",
+      "seconds": 0.0,
+      "north": 0.0,
+      "east": 0.0,
+      "altitude": 5.2,
+      "pitch": -20.6,
+      "gimbalYaw": 128.9
+    },
+    {
+      "id": "0057",
+      "seconds": 2.0,
+      "north": -0.044,
+      "east": -0.069,
+      "altitude": 5.2,
+      "pitch": 0,
+      "gimbalYaw": 128.9
+    },
+    {
+      "id": "0058",
+      "seconds": 6.0,
+      "north": -0.0,
+      "east": -0.253,
+      "altitude": 7.4,
+      "pitch": 0,
+      "gimbalYaw": 128.9
+    },
+    {
+      "id": "0059",
+      "seconds": 8.0,
+      "north": 0.179,
+      "east": -0.387,
+      "altitude": 9.4,
+      "pitch": 0,
+      "gimbalYaw": 128.9
+    },
+    {
+      "id": "0060",
+      "seconds": 12.0,
+      "north": 0.02,
+      "east": -0.388,
+      "altitude": 11.4,
+      "pitch": 0,
+      "gimbalYaw": 128.9
+    },
+    {
+      "id": "0062",
+      "seconds": 21.0,
+      "north": -1.81,
+      "east": -2.73,
+      "altitude": 11.4,
+      "pitch": 0,
+      "gimbalYaw": 128.9
+    },
+    {
+      "id": "0063",
+      "seconds": 30.0,
+      "north": -1.96,
+      "east": -2.896,
+      "altitude": 9,
+      "pitch": 0,
+      "gimbalYaw": 128.9
+    },
+    {
+      "id": "0064",
+      "seconds": 34.0,
+      "north": -2.042,
+      "east": -2.833,
+      "altitude": 7.2,
+      "pitch": 0,
+      "gimbalYaw": 128.9
+    },
+    {
+      "id": "0065",
+      "seconds": 37.0,
+      "north": -1.991,
+      "east": -2.743,
+      "altitude": 5.8,
+      "pitch": 0,
+      "gimbalYaw": 128.9
+    },
+    {
+      "id": "0066",
+      "seconds": 39.0,
+      "north": -1.797,
+      "east": -2.733,
+      "altitude": 5.1,
+      "pitch": 0,
+      "gimbalYaw": 128.9
+    },
+    {
+      "id": "0067",
+      "seconds": 42.0,
+      "north": -1.68,
+      "east": -2.777,
+      "altitude": 5.1,
+      "pitch": -19.4,
+      "gimbalYaw": 128.9
+    },
+    {
+      "id": "0068",
+      "seconds": 43.0,
+      "north": -1.648,
+      "east": -2.828,
+      "altitude": 5.1,
+      "pitch": -32.6,
+      "gimbalYaw": 128.9
+    },
+    {
+      "id": "0070",
+      "seconds": 60.0,
+      "north": -3.134,
+      "east": -4.659,
+      "altitude": 5.3,
+      "pitch": -17.2,
+      "gimbalYaw": 128.9
+    },
+    {
+      "id": "0071",
+      "seconds": 63.0,
+      "north": -3.092,
+      "east": -4.802,
+      "altitude": 5.3,
+      "pitch": 0,
+      "gimbalYaw": 128.9
+    },
+    {
+      "id": "0072",
+      "seconds": 66.0,
+      "north": -3.173,
+      "east": -4.9,
+      "altitude": 7.4,
+      "pitch": 0,
+      "gimbalYaw": 128.9
+    }
+  ]
+}

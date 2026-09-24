@@ -6,8 +6,9 @@ import { buildGroups } from './grouping.js';
 import { buildReviewItems } from './review.js';
 
 const fixture = JSON.parse(readFileSync(new URL('../test-support/visual-pass-calibration.json', import.meta.url)));
-function flight() {
-  return fixture.rows.map((r) => ({ ...r, file: { name: `image_${r.id}.jpg`, size: 1 },
+const tiltFixture = JSON.parse(readFileSync(new URL('../test-support/visual-pass-pitch-adjustment.json', import.meta.url)));
+function flight(source = fixture) {
+  return source.rows.map((r) => ({ ...r, file: { name: `image_${r.id}.jpg`, size: 1 },
     latitude: r.north / 6371000 * 180 / Math.PI, longitude: r.east / 6371000 * 180 / Math.PI,
     altitudeSource: 'relative', captureDate: new Date(r.seconds * 1000) }));
 }
@@ -57,13 +58,79 @@ test('missing telemetry, mixed altitude datums, gaps and camera turns are not si
     (r) => { r[13].captureDate = r[12].captureDate; },
     (r) => { r[13].captureDate = new Date(r[12].captureDate.getTime() + 61000); },
     (r) => { r[13].altitudeSource = 'absolute'; },
-    (r) => { r[13].gimbalYaw += 30; }, (r) => { r[13].pitch = -30; },
+    (r) => { r[13].gimbalYaw += 30; }, (r) => { r[13].pitch = -75; },
     (r) => { r[13].markerOverride = 'normal'; }, (r) => { r[13].markerOverride = 'split'; },
     (r) => { r[13].pitch = -90; },
   ]) {
     const rows = flight(); change(rows);
     assert.equal(findVisualPassCandidates(rows, settings).candidates.length, 0);
   }
+});
+
+const partialFlight = () => flight(tiltFixture).slice(8);
+
+test('short tilted sample suggests 0070, comparing 0066/0071 without moving the boundary', () => {
+  const rows = partialFlight();
+  rows.forEach((row) => { row.file.name = 'same-name.jpg'; });
+  const { candidates } = findVisualPassCandidates(rows, settings);
+  assert.deepEqual(candidates.map((c) => rows[c.boundaryIndex].id), ['0070']);
+  const [candidate] = candidates;
+  assert.equal(candidate.passEvidence, 'partial');
+  assert.equal(candidate.priorDirection, null);
+  assert.equal(candidate.nextDirection, 'up');
+  assert.ok(Math.abs(candidate.lateralMeters - 2.306) < 0.01);
+  assert.equal(rows[candidate.comparisonBeforeIndex].id, '0066');
+  assert.equal(rows[candidate.comparisonAfterIndex].id, '0071');
+  assert.equal(buildGroups(rows, settings).groups.length, 1);
+  rows[candidate.boundaryIndex].markerOverride = 'split';
+  const { groups } = buildGroups(rows, settings);
+  assert.deepEqual(groups.map((g) => g.files.map((r) => r.id)), [['0065', '0066', '0067', '0068'], ['0070', '0071', '0072']]);
+  assert.equal(groups[1].startReason, 'manual-split');
+});
+
+test('combined excerpts retain the 0062 suggestion and add only 0070', () => {
+  const rows = flight(tiltFixture);
+  const { candidates } = findVisualPassCandidates(rows, settings);
+  assert.deepEqual(candidates.map((c) => rows[c.boundaryIndex].id), ['0062', '0070']);
+  assert.equal(candidates[0].passEvidence, 'established');
+  assert.equal(candidates[0].comparisonBeforeIndex, candidates[0].beforeIndex);
+  assert.equal(candidates[0].comparisonAfterIndex, candidates[0].boundaryIndex);
+  for (const c of candidates) rows[c.boundaryIndex].markerOverride = 'split';
+  assert.deepEqual(buildGroups(rows, settings).groups.map((g) => g.files.length), [5, 7, 3]);
+});
+
+test('partial evidence does not turn tilts, approaches, transient GPS jumps or horizontal-only moves into passes', () => {
+  for (const change of [
+    // Camera tilt alone while remaining in the same column.
+    (rows) => { for (const r of rows) { r.latitude = 0; r.longitude = 0; } },
+    // Move parallel to the viewing direction instead of sideways.
+    (rows) => { for (const r of rows) r.gimbalYaw -= 90; },
+    // GPS jump returns to the old column.
+    (rows) => { rows[5].latitude = rows[3].latitude; rows[5].longitude = rows[3].longitude; },
+    (rows) => { for (const r of rows.slice(4)) r.altitude = 5.3; },
+    // A partial but clearly ascending prior pass followed by continued ascent.
+    (rows) => { [3.5, 4.4, 5.1, 5.1].forEach((h, i) => { rows[i].altitude = h; }); },
+    (rows) => { rows[4].gimbalYaw += 15; },
+    (rows) => { rows[4].pitch = null; },
+    (rows) => { rows[4].altitudeSource = 'absolute'; },
+    (rows) => { rows[4].captureDate = new Date(rows[3].captureDate.getTime() + 61000); },
+    (rows) => { rows[4].markerOverride = 'normal'; },
+    (rows) => { rows[3].markerOverride = 'marker'; },
+  ]) {
+    const rows = partialFlight(); change(rows);
+    assert.equal(findVisualPassCandidates(rows, settings).candidates.length, 0);
+  }
+  assert.equal(findVisualPassCandidates(partialFlight().slice(0, 6), settings).candidates.length, 0);
+});
+
+test('without comparable camera angles a metadata proposal has no invented visual pair', () => {
+  const rows = partialFlight();
+  for (const row of rows.slice(0, 4)) row.pitch = -40;
+  for (const row of rows.slice(4)) row.pitch = 0;
+  const [candidate] = findVisualPassCandidates(rows, settings).candidates;
+  assert.equal(candidate.boundaryIndex, 4);
+  assert.equal(candidate.comparisonBeforeIndex, null);
+  assert.equal(candidate.comparisonAfterIndex, null);
 });
 
 test('requires surrounding evidence and rejects a GPS jump that immediately returns to the old column', () => {
