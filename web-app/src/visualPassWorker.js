@@ -23,12 +23,13 @@ self.onmessage = async ({ data: jobs }) => {
   for (let index = 0; index < jobs.length; index += 1) {
     const job = jobs[index]; let visual;
     try {
+      if (!job.before || !job.after) throw new Error('no-comparable-photos');
       // Decode at most one full image at a time; retain only two small thumbnails.
       const before = await thumbnail(job.before);
       const after = await thumbnail(job.after);
       visual = matchLateralMotion(before, after, Math.sign(job.lateralMeters));
     } catch (error) {
-      const known = ['unsupported-format', 'image-too-large', 'browser-unavailable'];
+      const known = ['unsupported-format', 'image-too-large', 'browser-unavailable', 'no-comparable-photos'];
       visual = { supported: false, reason: known.includes(error.message) ? error.message : 'image-decode-failed', matches: 0 };
     }
     self.postMessage({ index, visual });

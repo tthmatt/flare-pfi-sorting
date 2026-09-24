@@ -11,8 +11,12 @@ import { createCalibrationReport } from './calibration.js';
 import { analysisProgress, analysisSummary, logStatus } from './telemetry.js';
 import { analyzeVisualPasses } from './visualAnalysis.js';
 
-const APP_VERSION = '0.4.1';
+const APP_VERSION = '0.4.2';
 const CHANGELOG = [
+  {
+    version: '0.4.2', date: '2026-09-24',
+    changes: ['Suggest persistent sideways moves in partial pass sequences and allow camera pitch adjustments.', 'Use nearby photos at similar camera angles for visual comparison, keeping the proposed folder start at the first photo after the move.'],
+  },
   {
     version: '0.4.1', date: '2026-09-24',
     changes: ['Moved the optional altitude fallback and tolerance into collapsed Advanced settings, with the fallback off by default.'],
@@ -399,6 +403,7 @@ export default function App() {
 }
 
 const VISUAL_REASON_LABELS = {
+  'no-comparable-photos': 'No nearby pair has similar camera angles and height. Review the GPS-based suggestion yourself.',
   'unsupported-format': 'Visual comparison supports JPG and PNG photos.',
   'image-too-large': 'This photo exceeds the 64 MiB visual-analysis limit.',
   'browser-unavailable': 'This browser cannot perform the visual comparison.',
@@ -416,8 +421,9 @@ function VisualPassPanel({ result, working, disabled, analyses, overrides, onAna
   const [applied, setApplied] = useState(() => new Map());
   useEffect(() => { setActive(0); setDismissed(new Set()); setChosen(null); setApplied(new Map()); }, [result]);
   const proposal = result?.proposals[Math.min(active, result.proposals.length - 1)];
-  const start = proposal ? Math.max(0, proposal.boundaryIndex - 2) : 0;
-  const window = proposal ? analyses.slice(start, proposal.boundaryIndex + 3) : [];
+  const start = proposal ? Math.max(0, Math.min(proposal.boundaryIndex - 2, proposal.comparisonBeforeIndex ?? proposal.boundaryIndex)) : 0;
+  const end = proposal ? Math.max(proposal.boundaryIndex + 3, (proposal.comparisonAfterIndex ?? proposal.boundaryIndex) + 1) : 0;
+  const window = proposal ? analyses.slice(start, end) : [];
   const appliedDecision = proposal && applied.get(proposal.file);
   const accepted = appliedDecision && overrides.get(appliedDecision.file) === 'split';
   const boundaryIndex = accepted ? analyses.findIndex((item) => item.file === appliedDecision.file) : chosen ?? proposal?.boundaryIndex;
@@ -441,7 +447,10 @@ function VisualPassPanel({ result, working, disabled, analyses, overrides, onAna
     {proposal && <article className="proposal-item">
       <p><strong>Suggestion {active + 1} of {result.proposals.length}</strong> · {accepted ? 'Accepted' : dismissed.has(proposal.file) ? 'Dismissed' : 'Needs review'}</p>
       <strong>Start next folder at {getFileName(proposal.file)}</strong>
-      <p>{proposal.priorDirection} → {proposal.nextDirection} evidence · sideways GPS shift about {Math.abs(proposal.lateralMeters).toFixed(1)} m · altitude change {proposal.altitudeDelta.toFixed(1)} m.</p>
+      <p>{proposal.priorDirection ? `${proposal.priorDirection} → ${proposal.nextDirection} evidence` : `${proposal.nextDirection === 'up' ? 'Ascent' : 'Descent'} after sideways move`} · sideways GPS shift about {Math.abs(proposal.lateralMeters).toFixed(1)} m · altitude change {proposal.altitudeDelta.toFixed(1)} m.</p>
+      {proposal.passEvidence === 'partial' && <p><strong>Limited altitude evidence.</strong> Nearby photos do not show a complete preceding vertical pass. Check that the sideways move starts a new inspection column before accepting.</p>}
+      {proposal.comparisonBeforeFile && (proposal.comparisonBeforeIndex !== proposal.beforeIndex || proposal.comparisonAfterIndex !== proposal.boundaryIndex)
+        && <p>Similar-angle photos used for comparison: {getFileName(proposal.comparisonBeforeFile)} and {getFileName(proposal.comparisonAfterFile)}. The suggested folder start remains {getFileName(proposal.file)}.</p>}
       <p>{proposal.visual.supported ? 'Visual check: matching building details support a sideways shift.'
         : `Visual check inconclusive. ${VISUAL_REASON_LABELS[proposal.visual.reason] ?? 'Review the photos yourself before accepting.'}`}</p>
       <div className="preview-grid pass-comparison">{window.map((item, offset) => <article key={start + offset} className={`preview-card ${start + offset === boundaryIndex ? 'chosen-boundary' : ''}`}>

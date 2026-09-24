@@ -94,12 +94,13 @@ def test_react_app_records_folder_start_reasons_and_altitude_fallback():
 
 def test_react_altitude_inference_requires_sustained_reversal():
     source = Path("web-app/src/grouping.js").read_text()
+    ordering_source = Path("web-app/src/ordering.js").read_text()
 
     assert "runSteps >= settings.altitudeMinSteps" in source
     assert "previousRunSpan >= settings.altitudeMinSpan" in source
     assert "candidateSteps >= settings.altitudeMinSteps" in source
     assert "candidateSpan >= settings.altitudeMinSpan" in source
-    assert "settings.inferAltitudeTurns ? 'capture' : settings.sortBy" in source
+    assert "settings.inferAltitudeTurns || analyses.some((item) => item.markerOverride === 'split') ? 'capture' : settings.sortBy" in ordering_source
 
 
 def test_react_horizontal_traverse_is_confirmed_and_has_distinct_reason():
