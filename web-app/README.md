@@ -1,6 +1,6 @@
 # Drone Image Sorter Web App
 
-**Current version:** 0.4.5
+**Current version:** 0.4.6
 
 Browser-based version of the PFI drone inspection image sorter for deployment on Vercel or any static hosting provider.
 
@@ -115,6 +115,23 @@ As with altitude-based suggestions, incompatible camera views leave the image
 check explicitly inconclusive; review the photos before accepting this metadata
 suggestion.
 
+**Vertical passes at separate positions** can qualify even when the camera turns
+or the drone changes height while moving between columns. This stricter path
+allows a heading change up to 45° and a boundary height change up to 5 m, only
+when each side has at least three photos with two significant altitude steps
+(over 0.75 m), at least 3 m vertical span, consistent opposing directions and at
+least 3 m of overlapping height range. Headings must be stable within 8° inside
+each pass; a turn within a pass can truncate its evidence.
+
+The move must project at least 4 m sideways in **both** camera headings and remain
+more lateral than forward in each. In the midpoint heading, sideways movement
+must be at least twice the forward movement and twice the height change. Full
+horizontal drift within either pass must not exceed one sixth of the smaller
+sideways projection. This keeps stationary turns, forward approaches, unstable
+GPS and unrelated altitude changes from qualifying. The UI reports the heading
+change. A metadata suggestion still needs operator acceptance, and incompatible
+views remain an inconclusive image check rather than a claimed match.
+
 Candidate JPG/PNG pairs are decoded sequentially in a Web Worker into thumbnails
 no larger than 480 pixels. Distinct normalised patches in the lower image region
 are matched and checked for consistent sideways movement. Excluding the upper
@@ -123,8 +140,9 @@ not semantic facade recognition. No ML model, network request or paid API is
 used for the visual check. The main thread remains available for cancellation.
 The worker is terminated on completion, cancellation, timeout or error.
 
-The first prototype needs capture times, GPS, gimbal yaw, pitch and consistent
-altitude, with overlapping views and surrounding movement evidence. It can still
+Suggestions need capture times, GPS, gimbal yaw, pitch, consistent altitude and
+surrounding movement evidence. Image support needs overlapping views at similar
+camera angles. The detector can still
 miss very short excerpts, same-direction passes, large heading changes,
 low-texture walls and repeated windows. TIFF/DNG, decode failures and
 unsupported browser features are explicitly shown as inconclusive visual checks.
@@ -151,6 +169,11 @@ photo, `0078`, is a separate marker. Accepting the sole `0076` suggestion create
 five-photo and two-photo inspection folders with markers skipped, or 5/2/1 when
 retaining `0078`. The image check is inconclusive because the camera angles do
 not align. This sample is also stored only as redacted relative-motion telemetry.
+The `0859–0869` sample descends through `0864`, moves about 10.74 m sideways to
+`0865`, then ascends in the new column. The boundary changes heading by 38.4° and
+height by −2.2 m, exceeding the old adjacent-view limits of 8° and 2 m. The new
+rule proposes only `0865`; accepting it produces 6/5 photos. The image check is
+inconclusive because the headings differ. Its telemetry fixture is also redacted.
 These limited samples do not establish general accuracy or Mavic 2 support.
 The Python CLI is unchanged.
 
@@ -210,6 +233,13 @@ Import this GitHub repository into Vercel and use these settings:
 
 
 ## Changelog
+
+### 0.4.6 - 2026-09-24
+
+- Detect strongly separated, sustained vertical passes across moderate camera turns and height offsets.
+- Check heading stability within each pass and sideways movement in both camera frames.
+- Show the heading change without treating incompatible camera views as an image match.
+- Add redacted telemetry and regression coverage for the missed boundary before `0865`.
 
 ### 0.4.5 - 2026-09-24
 

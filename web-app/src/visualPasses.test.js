@@ -9,6 +9,7 @@ const fixture = JSON.parse(readFileSync(new URL('../test-support/visual-pass-cal
 const tiltFixture = JSON.parse(readFileSync(new URL('../test-support/visual-pass-pitch-adjustment.json', import.meta.url)));
 const sweepFixture = JSON.parse(readFileSync(new URL('../test-support/visual-pass-camera-sweep.json', import.meta.url)));
 const shortTiltFixture = JSON.parse(readFileSync(new URL('../test-support/visual-pass-short-tilted-return.json', import.meta.url)));
+const viewpointFixture = JSON.parse(readFileSync(new URL('../test-support/visual-pass-viewpoint-change.json', import.meta.url)));
 function flight(source = fixture) {
   return source.rows.map((r) => ({ ...r, file: { name: `image_${r.id}.jpg`, size: 1 },
     latitude: r.north / 6371000 * 180 / Math.PI, longitude: r.east / 6371000 * 180 / Math.PI,
@@ -284,6 +285,114 @@ test('a descent can likewise return by tilting upwards in the next column', () =
   assert.equal(candidate.boundaryIndex, 5);
   assert.equal(candidate.priorDirection, 'down');
   assert.equal(candidate.nextDirection, 'up');
+});
+
+test('stable vertical passes with a changed viewpoint suggest only 0865 and keep every inspection photo', () => {
+  const rows = flight(viewpointFixture);
+  rows.forEach((r) => { r.file.name = 'same-name.jpg'; });
+  const { candidates } = findVisualPassCandidates(rows, settings);
+  assert.deepEqual(candidates.map((c) => rows[c.boundaryIndex].id), ['0865']);
+  const [candidate] = candidates;
+  assert.equal(candidate.passEvidence, 'changed-viewpoint');
+  assert.equal(candidate.priorDirection, 'down');
+  assert.equal(candidate.nextDirection, 'up');
+  assert.ok(Math.abs(candidate.lateralMeters - 10.738) < 0.01);
+  assert.ok(Math.abs(candidate.headingChangeDegrees - 38.4) < 0.01);
+  assert.equal(candidate.altitudeDelta, -2.2);
+  assert.equal(candidate.comparisonBeforeIndex, null); // Heading differs by about 39° in every possible pair.
+  assert.equal(candidate.comparisonAfterIndex, null);
+  assert.equal(candidate.requiresVisualSupport, false);
+  assert.deepEqual(buildGroups(rows, settings).groups.map((g) => g.files.length), [11]);
+  rows[candidate.boundaryIndex].markerOverride = 'split';
+  assert.deepEqual(buildGroups(rows, settings).groups.map((g) => g.files.map((r) => r.id)), [
+    ['0859', '0860', '0861', '0862', '0863', '0864'], ['0865', '0866', '0867', '0868', '0869'],
+  ]);
+  rows[candidate.boundaryIndex].markerOverride = 'auto';
+  assert.deepEqual(buildGroups(rows, settings).groups.map((g) => g.files.length), [11]);
+});
+
+test('heading changes and height offsets each require complete pass evidence, with circular yaw handling', () => {
+  for (const change of [
+    (r) => { for (const item of r.slice(6)) item.altitude += 2.2; }, // Heading change only.
+    (r) => { for (const item of r.slice(6)) item.gimbalYaw = r[5].gimbalYaw; }, // Height offset only.
+    (r) => { for (const item of r.slice(6)) item.gimbalYaw -= 360; }, // Equivalent headings across ±180°.
+    (r) => { for (const item of r) item.altitude = 20 - item.altitude; }, // Ascent followed by descent.
+  ]) {
+    const rows = flight(viewpointFixture); change(rows);
+    assert.deepEqual(findVisualPassCandidates(rows, settings).candidates.map((c) => rows[c.boundaryIndex].id), ['0865']);
+  }
+});
+
+test('a changed viewpoint needs sustained opposing vertical passes with overlapping height ranges', () => {
+  const changes = {
+    'flat prior pass': (r) => { for (const item of r.slice(0, 6)) item.altitude = 4.2; },
+    'partial prior pass': (r) => { [5.9, 5.8, 5.7, 5.2, 4.7, 4.2].forEach((h, i) => { r[i].altitude = h; }); },
+    'partial return': (r) => { [2, 2.8, 3.6, 4.4, 5.2].forEach((h, i) => { r[i + 6].altitude = h; }); },
+    'same-direction return': (r) => { [2, 0, -2, -4, -6].forEach((h, i) => { r[i + 6].altitude = h; }); },
+    'conflicting prior steps': (r) => { r[3].altitude = 10.5; },
+    'conflicting return steps': (r) => { r[8].altitude = 3; },
+    'non-overlapping heights': (r) => { [7, 9, 11, 13, 15].forEach((h, i) => { r[i + 6].altitude = h; }); },
+    'camera sweep without ascent': (r) => { for (const [i, item] of r.slice(6).entries()) { item.altitude = 2; item.pitch = i * 10; } },
+  };
+  for (const [label, change] of Object.entries(changes)) {
+    const rows = flight(viewpointFixture); change(rows);
+    assert.equal(findVisualPassCandidates(rows, settings).candidates.length, 0, label);
+  }
+  assert.equal(findVisualPassCandidates(flight(viewpointFixture).slice(0, 8), settings).candidates.length, 0);
+  assert.equal(findVisualPassCandidates(flight(viewpointFixture).slice(4), settings).candidates.length, 0);
+});
+
+test('changed viewpoints reject stationary turns, small shifts, approaches, unstable clusters and large height gaps', () => {
+  const changes = {
+    'stationary turn': (r) => { for (const item of r) { item.latitude = 0; item.longitude = 0; } },
+    'small shift': (r) => { for (const item of r) { item.latitude *= 0.3; item.longitude *= 0.3; } },
+    'forward approach': (r) => { for (const item of r) item.gimbalYaw += 90; },
+    'temporary GPS jump': (r) => { r[7].latitude = r[5].latitude; r[7].longitude = r[5].longitude; },
+    'prior GPS drift': (r) => { r[3].latitude += 3 / 6371000 * 180 / Math.PI; },
+    'return forward drift': (r) => { r[7].latitude += 2 / 6371000 * 180 / Math.PI; },
+    'large height gap': (r) => { r[6].altitude = -2; },
+    'height-dominated move': (r) => {
+      for (const item of r) { item.latitude *= 0.55; item.longitude *= 0.55; }
+      r[6].altitude = 0.5;
+    },
+  };
+  for (const [label, change] of Object.entries(changes)) {
+    const rows = flight(viewpointFixture); change(rows);
+    assert.equal(findVisualPassCandidates(rows, settings).candidates.length, 0, label);
+  }
+});
+
+test('motion must remain lateral in both headings even when the midpoint frame looks sideways', () => {
+  const rows = flight(viewpointFixture); const previous = rows[5]; const next = rows[6];
+  const midpointYaw = previous.gimbalYaw - 38.4 / 2;
+  const heading = midpointYaw * Math.PI / 180;
+  const north = -10 * Math.sin(heading) - 4.9 * Math.cos(heading);
+  const east = 10 * Math.cos(heading) - 4.9 * Math.sin(heading);
+  const latitudeOffset = previous.latitude + north / 6371000 * 180 / Math.PI - next.latitude;
+  const longitudeOffset = previous.longitude + east / 6371000 * 180 / Math.PI - next.longitude;
+  for (const item of rows.slice(6)) { item.latitude += latitudeOffset; item.longitude += longitudeOffset; }
+  const middle = cameraDisplacement({ ...previous, gimbalYaw: midpointYaw }, next);
+  const endFrame = cameraDisplacement({ ...previous, gimbalYaw: next.gimbalYaw }, next);
+  assert.ok(Math.abs(middle.lateral) > 2 * Math.abs(middle.forward));
+  assert.ok(Math.abs(endFrame.forward) > Math.abs(endFrame.lateral));
+  assert.equal(findVisualPassCandidates(rows, settings).candidates.length, 0);
+});
+
+test('changed viewpoints reject unstable headings, missing telemetry and reviewed or marked boundaries', () => {
+  for (const change of [
+    (r) => { for (const item of r.slice(6)) item.gimbalYaw = 160; }, // Turn exceeds 45°.
+    (r) => { r[7].gimbalYaw += 15; }, (r) => { r[4].gimbalYaw += 15; },
+    (r) => { r[6].latitude = null; }, (r) => { r[7].gimbalYaw = null; },
+    (r) => { r[7].pitch = null; }, (r) => { r[6].captureDate = null; },
+    (r) => { r[6].altitudeSource = 'absolute'; }, (r) => { r[4].altitudeSource = 'absolute'; },
+    (r) => { r[6].captureDate = new Date(r[5].captureDate.getTime() + 61000); },
+    (r) => { r[7].captureDate = r[6].captureDate; },
+    (r) => { r[6].markerOverride = 'normal'; }, (r) => { r[6].markerOverride = 'split'; },
+    (r) => { r[5].markerOverride = 'marker'; }, (r) => { r[5].pitch = -90; },
+  ]) {
+    const rows = flight(viewpointFixture); change(rows);
+    assert.equal(findVisualPassCandidates(rows, settings).candidates.length, 0);
+  }
 });
 
 test('partial evidence does not turn tilts, approaches, transient GPS jumps or horizontal-only moves into passes', () => {
