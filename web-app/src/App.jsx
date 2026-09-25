@@ -337,8 +337,8 @@ export default function App() {
             {hasInspectionSplits && <p className="field-hint">Inspection splits use capture time. Reset those corrections to change the order.</p>}
 
             <div className="settings-section"><h3>ZIP contents</h3>
-              <label className="check-row"><input type="checkbox" checked={settings.skipMarkers} onChange={(event) => updateSetting('skipMarkers', event.target.checked)} /><span>Skip marker photos<small>Use them to split folders, then leave them out of the ZIP.</small></span></label>
-              <label className="check-row"><input type="checkbox" checked={!settings.removeCsvReport} onChange={(event) => updateSetting('removeCsvReport', !event.target.checked)} /><span>Include CSV report<small>Add a record of each folder decision.</small></span></label>
+              <label className="check-row"><input type="checkbox" checked={settings.skipMarkers} onChange={(event) => updateSetting('skipMarkers', event.target.checked)} /><span>Skip pitched-down marker photos in output<small>Use them to split folders, then leave them out of the ZIP.</small></span></label>
+              <label className="check-row"><input type="checkbox" checked={settings.removeCsvReport} onChange={(event) => updateSetting('removeCsvReport', event.target.checked)} /><span>Remove CSV report from sorted ZIP<small>Turn this off to include a record of each folder decision.</small></span></label>
               <label className="check-row"><input type="checkbox" checked={settings.keepFolderPaths} onChange={(event) => updateSetting('keepFolderPaths', event.target.checked)} /><span>Keep original paths<small>Preserve subfolders inside each output folder.</small></span></label>
             </div>
 
