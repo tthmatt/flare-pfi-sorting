@@ -136,7 +136,7 @@ export function findVisualPassCandidates(records, settings = {}) {
   const reject = (reason) => { reasons[reason] = (reasons[reason] ?? 0) + 1; };
   for (let index = 1; index < records.length; index += 1) {
     const previous = records[index - 1]; const next = records[index];
-    if (next.markerOverride && next.markerOverride !== 'auto') { reject('already-reviewed'); continue; }
+    if (next.boundaryOverride === 'join' || (next.markerOverride && next.markerOverride !== 'auto')) { reject('already-reviewed'); continue; }
     if (records.slice(Math.max(0, index - 2), index + 1).some((item) => isMarkerImage(item, settings))) { reject('existing-marker'); continue; }
     const movement = cameraDisplacement(previous, next);
     if (!movement || !Number.isFinite(next.gimbalYaw) || !sameAltitudeSource(previous, next)

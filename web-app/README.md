@@ -1,6 +1,6 @@
 # Drone Image Sorter Web App
 
-**Current version:** 0.5.0
+**Current version:** 0.6.0
 
 Browser-based version of the PFI drone inspection image sorter for deployment on Vercel or any static hosting provider.
 
@@ -31,12 +31,79 @@ bar remain accessible while scrolling through a large photo selection.
 - Expand **Advanced settings** for pitch thresholds, altitude fallback and
   experimental GPS proposals. Telemetry, detailed help and version history are
   also collapsible.
-- **Include CSV report** adds the report to the ZIP; it is off by default, as
-  before. **Skip marker photos** controls whether marker images are exported.
+- Clear **Remove CSV report from sorted ZIP** to include the report; removal is
+  enabled by default. **Skip marker photos** controls whether marker images are exported.
 
 Review filters only change what is displayed. ZIP export still includes every
 output folder. Sorting, metadata, visual-pass detection and original photo bytes
 are unchanged by the layout update.
+
+## Review tools and saved sessions
+
+Version 0.6.0 adds six desktop review tools:
+
+1. **Compare & edit passes** shows the current photo beside the preceding retained
+   photo. Linked zoom (100–400%) and drag-to-pan help compare details. Filenames,
+   pitch, altitude, camera heading and sideways GPS estimates remain visible.
+   The movement value still uses the actual preceding capture-time photo, which
+   may be a skipped marker; its reference filename is shown explicitly.
+2. **Saved review** automatically keeps up to five photo selections in this
+   browser's local storage. Reselect the same original folder and analyze it to
+   resume decisions, folder names, dismissed suggestions, reviewed issues,
+   settings, flight/drone labels and your selected timeline photo. No image bytes
+   or GPS metadata are stored. A versioned JSON backup can be downloaded and
+   restored after selecting the matching originals. Private browsing, storage
+   quotas or clearing browser data can remove local saves; save failures are
+   displayed and review/export remains usable.
+3. **Capture-time timeline** shows labelled pass starts and skipped markers,
+   a bounded 21-photo filmstrip and a jump-to-photo control. Choose capture-time
+   order before using timeline editing. Split at a retained photo, merge with the
+   previous pass, or move a boundary one retained photo earlier/later. Merging
+   suppresses the boundary separately from marker classification, so skipped
+   markers stay skipped. Moves cannot empty either neighbouring pass. Undo/redo
+   covers up to 50 review edits during the current page session. Inside the
+   workspace, use arrows to navigate, S to split, M to merge, Ctrl/Command Z to
+   undo, and Ctrl/Command Shift Z to redo. Shortcuts do not capture typing in fields.
+4. **Needs review** collects unresolved suggestions, image-inconclusive camera
+   sweeps, candidates outside the worker limit, missing metadata and one/two-photo
+   folders. Click a filename to compare it, or use Next issue. Mark reviewed is
+   only an acknowledgement; it does not change the folder plan. It is reversible,
+   and boundary edits clear acknowledgements so changed decisions can be checked.
+   An empty queue is not proof that all pass boundaries were detected.
+5. **Folder plan** supports individual names, first/last filenames, photo counts,
+   merges and selected-folder ZIP downloads. Names are sanitized and duplicates
+   receive suffixes. The main Download ZIP still exports every output folder;
+   selected export contains only checked folders and their CSV rows. ZIP name
+   collisions are resolved without overwriting another original photo.
+6. **Detection accuracy** evaluates complete flights against a plan you explicitly
+   confirm after reviewing every boundary. Enter a flight name and drone model,
+   use capture order, confirm the plan, and evaluate. The detector runs on raw
+   metadata without manual marker/split/join decisions. Confirmed folder starts
+   are the labels, not the predictions. Results separately count correct starts,
+   missed boundaries and incorrect splits, with exact first-inspection-photo
+   matching (a one-photo error is both a miss and an incorrect split). The first
+   pass is implicit. Precision/recall show N/A for a zero denominator. Worker runs
+   exceeding 200 candidates are incomplete and cannot enter the benchmark.
+
+Benchmark results are saved locally, can be exported/imported as JSON, and are
+aggregated separately by drone, detector version and settings. Re-evaluating the
+same photo selection with the same detector/settings replaces its prior result
+instead of inflating the flight count. The collection retains up to 100 runs.
+Exports contain filenames, labels and settings, but no photos or GPS coordinates.
+Confirmed labels are only as reliable as the operator's full-flight review;
+the app does not claim a calibrated confidence score or general detection accuracy.
+
+Session identity checks use relative paths, sizes, modification dates and SHA-256
+fingerprints of the first/last 64 KiB of each file. Selection order may change;
+paths and originals must match. These are bounded resume checks, not full-file
+integrity hashes. Ambiguous duplicate identities disable saving for that selection
+rather than restoring decisions to the wrong photo. Selecting a different set
+starts a separate review. Photo files still need to be reselected after reload.
+Visual analysis can be rerun; its decoded images and worker state are not saved.
+
+No trained model or paid service is introduced. Existing detector thresholds are
+unchanged. Collect independently reviewed complete flights across drones, facades
+and flight patterns before using these measurements to tune or replace detection.
 
 ## Sideways movement in image previews
 
@@ -66,7 +133,8 @@ summary if you enable the fallback and collapse the section.
 
 Leave the fallback off for the visual review workflow. **Visual pass suggestions**
 checks altitude independently of this option. Collapsing Advanced settings keeps
-your current choices; reloading the app restores its defaults.
+your current choices. Saved reviews restore their settings when the same photo
+selection is reopened.
 
 ## Visual pass suggestions (experimental)
 
@@ -85,8 +153,9 @@ sweeps at steady height, a missed pitch marker can be reviewed using ordinary ph
 the detector misses. **Keep in current folder (inspection photo)** prevents a
 split at that photo. Accepted starts use capture-time order, are recorded as
 `manual-split` with `marker_override=split` in the CSV, and can be undone. Like
-other corrections, they survive re-analysis of the same selection, but not new
-file selections or a page reload. Undo restores any prior decision on that photo.
+other corrections, they survive re-analysis and are saved locally when available.
+After a page reload, reselect the matching originals and analyze to resume.
+Undo restores the prior decision during the current session.
 
 The detector first checks consecutive capture-time records for predominantly
 sideways displacement relative to **gimbal yaw**, compatible relative/absolute
@@ -215,8 +284,8 @@ marker. An explicit correction starts a folder even beside another marker.
   the next inspection photo starts the folder. Skipped markers remain in the review
   so you can undo mistakes, including when every photo was skipped.
 - Search by filename or folder path to find a photo in a large selection.
-- Corrections survive re-analysis of the same selection, but choosing new files
-  or reloading the page clears them. **Reset corrections** restores automation.
+- Corrections survive re-analysis and can be restored from a local save or review
+  backup after reselecting the same originals. **Reset corrections** restores automation.
 - Original image bytes and recorded pitch are unchanged. CSV reports include
   `manual-marker` folder-start reasons and a `marker_override` column.
 
@@ -256,6 +325,16 @@ Import this GitHub repository into Vercel and use these settings:
 
 
 ## Changelog
+
+### 0.6.0 - 2026-09-25
+
+- Add linked side-by-side comparison, a chronological filmstrip and undo/redo.
+- Add marker-preserving joins, retained-photo boundary moves and per-folder names.
+- Save/recover review decisions locally and provide matching-selection JSON backups.
+- Add a needs-review queue with actionable inconclusive and unchecked candidates.
+- Export selected folders and resolve ZIP filename collisions without overwrites.
+- Benchmark the uncorrected detector against confirmed complete-flight labels,
+  with separate missed/incorrect split counts and versioned import/export.
 
 ### 0.4.6 - 2026-09-24
 

@@ -25,14 +25,14 @@ export function buildGroups(analyses, settings) {
   for (let index = 0; index < ordered.length; index += 1) {
     const item = ordered[index];
     const marker = markers[index];
-    let startReason = item.markerOverride === 'normal' ? null
+    let startReason = item.boundaryOverride === 'join' || item.markerOverride === 'normal' ? null
       : item.markerOverride === 'split' ? 'manual-split'
         : pitchStarts[index] ? (item.markerOverride === 'marker' ? 'manual-marker' : 'pitched-down')
         : horizontalStarts.has(index) ? 'horizontal-traverse' : reversalStarts.has(index) ? 'altitude-reversal' : null;
     let startsNewFolder = startReason !== null;
     if (settings.skipMarkers && marker) {
       skippedMarkerCount += 1;
-      if (pitchStarts[index]) {
+      if (pitchStarts[index] && item.boundaryOverride !== 'join') {
         pendingNewGroup = true;
         pendingStartReason = startReason;
       }

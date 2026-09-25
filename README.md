@@ -2,7 +2,13 @@ https://flare-pfi-sorting.vercel.app/
 
 # Flare PFI Sorting
 
-**Current browser app version:** 0.5.0
+**Current browser app version:** 0.6.0
+
+Version 0.6.0 adds linked side-by-side comparison, a capture-time timeline with
+split/merge/move and undo/redo, local review saving and backups, a needs-review
+queue, individual folder names and selected-folder downloads, and complete-flight
+accuracy benchmarking against operator-confirmed labels. See the
+[review tools guide](web-app/README.md#review-tools-and-saved-sessions).
 
 Version 0.5.0 adds a desktop review workspace with a compact settings sidebar,
 clickable folder plan, photo filters, expanded image viewer, and a persistent ZIP
