@@ -40,14 +40,9 @@ are unchanged by the layout update.
 
 ## Review tools and saved sessions
 
-Version 0.6.0 adds six desktop review tools:
+Version 0.6.0 adds five desktop review tools:
 
-1. **Compare & edit passes** shows the current photo beside the preceding retained
-   photo. Linked zoom (100–400%) and drag-to-pan help compare details. Filenames,
-   pitch, altitude, camera heading and sideways GPS estimates remain visible.
-   The movement value still uses the actual preceding capture-time photo, which
-   may be a skipped marker; its reference filename is shown explicitly.
-2. **Saved review** automatically keeps up to five photo selections in this
+1. **Saved review** automatically keeps up to five photo selections in this
    browser's local storage. Reselect the same original folder and analyze it to
    resume decisions, folder names, dismissed suggestions, reviewed issues,
    settings, flight/drone labels and your selected timeline photo. No image bytes
@@ -55,7 +50,7 @@ Version 0.6.0 adds six desktop review tools:
    restored after selecting the matching originals. Private browsing, storage
    quotas or clearing browser data can remove local saves; save failures are
    displayed and review/export remains usable.
-3. **Capture-time timeline** shows labelled pass starts and skipped markers,
+2. **Capture-time timeline** shows labelled pass starts and skipped markers,
    a bounded 21-photo filmstrip and a jump-to-photo control. Choose capture-time
    order before using timeline editing. Split at a retained photo, merge with the
    previous pass, or move a boundary one retained photo earlier/later. Merging
@@ -64,18 +59,18 @@ Version 0.6.0 adds six desktop review tools:
    covers up to 50 review edits during the current page session. Inside the
    workspace, use arrows to navigate, S to split, M to merge, Ctrl/Command Z to
    undo, and Ctrl/Command Shift Z to redo. Shortcuts do not capture typing in fields.
-4. **Needs review** collects unresolved suggestions, image-inconclusive camera
+3. **Needs review** collects unresolved suggestions, image-inconclusive camera
    sweeps, candidates outside the worker limit, missing metadata and one/two-photo
-   folders. Click a filename to compare it, or use Next issue. Mark reviewed is
-   only an acknowledgement; it does not change the folder plan. It is reversible,
+   folders. Click a filename to select it in the timeline, or use Next issue.
+   Mark reviewed is only an acknowledgement; it does not change the folder plan. It is reversible,
    and boundary edits clear acknowledgements so changed decisions can be checked.
    An empty queue is not proof that all pass boundaries were detected.
-5. **Folder plan** supports individual names, first/last filenames, photo counts,
+4. **Folder plan** supports individual names, first/last filenames, photo counts,
    merges and selected-folder ZIP downloads. Names are sanitized and duplicates
    receive suffixes. The main Download ZIP still exports every output folder;
    selected export contains only checked folders and their CSV rows. ZIP name
    collisions are resolved without overwriting another original photo.
-6. **Detection accuracy** evaluates complete flights against a plan you explicitly
+5. **Detection accuracy** evaluates complete flights against a plan you explicitly
    confirm after reviewing every boundary. Enter a flight name and drone model,
    use capture order, confirm the plan, and evaluate. The detector runs on raw
    metadata without manual marker/split/join decisions. Confirmed folder starts
@@ -328,7 +323,7 @@ Import this GitHub repository into Vercel and use these settings:
 
 ### 0.6.0 - 2026-09-25
 
-- Add linked side-by-side comparison, a chronological filmstrip and undo/redo.
+- Add a chronological filmstrip with boundary editing and undo/redo.
 - Add marker-preserving joins, retained-photo boundary moves and per-folder names.
 - Save/recover review decisions locally and provide matching-selection JSON backups.
 - Add a needs-review queue with actionable inconclusive and unchecked candidates.

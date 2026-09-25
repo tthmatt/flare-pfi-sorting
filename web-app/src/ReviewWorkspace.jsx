@@ -22,36 +22,15 @@ export function SessionPanel({ workspace, disabled, onImported, onError }) {
   </section>;
 }
 
-function LocalPhoto({ file, className, style }) {
+function LocalPhoto({ file }) {
   const [url, setUrl] = useState(null); const [error, setError] = useState(false);
   useEffect(() => {
     setError(false); if (!file || !canPreviewInBrowser(file)) { setUrl(null); return; }
     const source = URL.createObjectURL(file); setUrl(source);
     return () => URL.revokeObjectURL(source);
   }, [file]);
-  return url && !error ? <img className={className} style={style} src={url} alt={getFileName(file)} draggable="false" loading="lazy" onError={() => setError(true)} />
-    : <span className="image-unavailable">{file ? 'Preview unavailable for this image' : 'No preceding inspection photo'}</span>;
-}
-
-function ComparePane({ item, label, groupName, movement, transform, onPan }) {
-  const drag = useRef(null);
-  return <article className="compare-pane">
-    <header><span className="eyebrow">{label}</span><strong>{item ? getFileName(item.file) : 'Beginning of selection'}</strong><span>{groupName || (item ? 'Skipped marker' : '—')}</span></header>
-    <div className={`compare-image ${transform.scale > 1 ? 'can-pan' : ''}`} onPointerDown={(event) => {
-      if (transform.scale <= 1) return;
-      drag.current = { x: event.clientX - transform.x, y: event.clientY - transform.y };
-      event.currentTarget.setPointerCapture(event.pointerId);
-    }} onPointerMove={(event) => {
-      if (drag.current) onPan({ ...transform, x: event.clientX - drag.current.x, y: event.clientY - drag.current.y });
-    }} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }}>
-      <LocalPhoto file={item?.file} style={{ transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})` }} />
-    </div>
-    {item && <div className="compare-details">
-      <span>Pitch <strong>{number(item.pitch, '°')}</strong></span><span>Altitude <strong>{number(item.altitude, ' m')}</strong></span><span>Heading <strong>{number(item.gimbalYaw, '°')}</strong></span>
-      <span className="compare-movement">Sideways GPS estimate <strong>{Number.isFinite(movement?.meters) ? `${Math.abs(movement.meters).toFixed(2)} m ${movement.meters < 0 ? 'left' : movement.meters > 0 ? 'right' : ''}` : 'Unavailable'}</strong>{movement?.previousFile && <small>from {getFileName(movement.previousFile)}</small>}</span>
-      <small className="source-path">{getDisplayPath(item.file)}</small>
-    </div>}
-  </article>;
+  return url && !error ? <img src={url} alt={getFileName(file)} draggable="false" loading="lazy" onError={() => setError(true)} />
+    : <span className="image-unavailable">Preview unavailable for this image</span>;
 }
 
 export function FolderManager({ groups, records, workspace, onSelect, onExport, disabled, chronological }) {
@@ -77,15 +56,13 @@ export function FolderManager({ groups, records, workspace, onSelect, onExport, 
   </>;
 }
 
-export function ReviewWorkspace({ records, groups, workspace, movements, visual, disabled, chronological, onCaptureOrder }) {
+export function ReviewWorkspace({ records, groups, workspace, visual, disabled, chronological, onCaptureOrder }) {
   const root = useRef(null);
   const { ids, edits } = workspace;
   const index = Math.max(0, records.findIndex((item) => ids.get(item.file) === workspace.activeId));
   const active = records[index];
   const placements = useMemo(() => new Map(groups.flatMap((group, gi) => group.files.map((item, fi) => [item.file, { group, gi, start: fi === 0 }]))), [groups]);
-  const previous = records.slice(0, index).findLast((item) => placements.has(item.file));
   const currentPlacement = placements.get(active?.file);
-  const [transform, setTransform] = useState({ scale: 1, x: 0, y: 0 });
   const [queueFilter, setQueueFilter] = useState('all');
   const [showResolved, setShowResolved] = useState(false);
   const queue = useMemo(() => buildReviewQueue(records, groups, visual, ids, edits), [records, groups, visual, ids, edits]);
@@ -102,7 +79,6 @@ export function ReviewWorkspace({ records, groups, workspace, movements, visual,
     workspace.edit((state) => moveBoundary(state, gi, delta, groups, records, ids));
     if (target) workspace.setActiveId(ids.get(target.file));
   };
-  useEffect(() => { setTransform({ scale: 1, x: 0, y: 0 }); }, [active?.file]);
   useEffect(() => {
     const strip = root.current?.querySelector('.filmstrip');
     const card = strip?.querySelector('[aria-pressed="true"]');
@@ -120,25 +96,21 @@ export function ReviewWorkspace({ records, groups, workspace, movements, visual,
     else if (event.key.toLowerCase() === 's') { event.preventDefault(); split(); }
     else if (event.key.toLowerCase() === 'm') { event.preventDefault(); merge(); }
   }}>
-    <div className="panel-heading"><div><h2><Icon name="scan" /> Compare & edit passes</h2><p className="section-description">Compare the current photo with the preceding retained photo. Zoom and pan move both views together.</p></div>
+    <div className="panel-heading"><div><h2><Icon name="scan" /> Timeline & pass editing</h2><p className="section-description">Select a photo in the timeline to split, merge or move a folder boundary.</p></div>
       <div className="button-row"><button className="secondary" disabled={disabled || !workspace.canUndo} onClick={workspace.undo}>Undo</button><button className="secondary" disabled={disabled || !workspace.canRedo} onClick={workspace.redo}>Redo</button></div></div>
     {!chronological && <div className="order-notice"><span>The timeline follows capture time. Switch the folder plan to the same order before editing here.</span><button className="secondary" onClick={onCaptureOrder} disabled={disabled}>Use capture-time order</button></div>}
-    <div className="compare-toolbar">
+    <div className="timeline-toolbar">
       <div className="button-row"><button className="secondary" disabled={!index} onClick={() => choose(index - 1)}>← Previous</button><span>{index + 1} / {records.length}</span><button className="secondary" disabled={index === records.length - 1} onClick={() => choose(index + 1)}>Next →</button></div>
-      <label>Linked zoom<input type="range" min="1" max="4" step="0.25" value={transform.scale} onChange={(event) => setTransform((state) => ({ ...state, scale: Number(event.target.value) }))} /></label><span>{Math.round(transform.scale * 100)}%</span><button className="secondary" onClick={() => setTransform({ scale: 1, x: 0, y: 0 })}>Fit both</button>
-    </div>
-    <div className="comparison-grid">
-      <ComparePane item={previous} label="Previous retained photo" groupName={placements.get(previous?.file)?.group.name} movement={movements.get(previous?.file)} transform={transform} onPan={setTransform} />
-      <ComparePane item={active} label={currentPlacement?.start ? 'Current photo · folder start' : 'Current photo'} groupName={currentPlacement?.group.name} movement={movements.get(active.file)} transform={transform} onPan={setTransform} />
+      <div className="timeline-selection" aria-live="polite"><strong>{getFileName(active.file)}</strong><span>{currentPlacement ? `${currentPlacement.group.name}${currentPlacement.start ? ' · Folder start' : ''}` : 'Skipped marker'}</span></div>
     </div>
     <div className="decision-toolbar">
       <button disabled={disabled || !chronological || !index || currentPlacement?.start} onClick={split}>Split before this photo</button>
       <button className="secondary" disabled={disabled || !chronological || !currentPlacement?.gi} onClick={merge}>Merge this pass with previous</button>
       <button className="secondary" disabled={disabled || !chronological || !currentPlacement?.gi || groups[currentPlacement.gi - 1]?.files.length < 2} onClick={() => shift(-1)}>Boundary one photo earlier</button>
       <button className="secondary" disabled={disabled || !chronological || !currentPlacement?.gi || currentPlacement.group.files.length < 2} onClick={() => shift(1)}>Boundary one photo later</button>
-      <label>Photo decision<select aria-label="Comparison photo decision" value={edits.markers[ids.get(active.file)] ?? 'auto'} disabled={disabled || !chronological} onChange={(event) => workspace.edit((state) => changeMarker(state, ids.get(active.file), event.target.value))}><option value="auto">Automatic</option><option value="split">Start folder here (keep photo)</option><option value="marker">Start folder here (marker)</option><option value="normal">Keep in current folder (inspection photo)</option></select></label>
+      <label>Photo decision<select aria-label="Timeline photo decision" value={edits.markers[ids.get(active.file)] ?? 'auto'} disabled={disabled || !chronological} onChange={(event) => workspace.edit((state) => changeMarker(state, ids.get(active.file), event.target.value))}><option value="auto">Automatic</option><option value="split">Start folder here (keep photo)</option><option value="marker">Start folder here (marker)</option><option value="normal">Keep in current folder (inspection photo)</option></select></label>
     </div>
-    <p className="keyboard-guide">Inside this workspace: ← → browse · S split · M merge · Ctrl/⌘ Z undo · Ctrl/⌘ Shift Z redo. Drag a zoomed image to pan.</p>
+    <p className="keyboard-guide">Inside this workspace: ← → browse · S split · M merge · Ctrl/⌘ Z undo · Ctrl/⌘ Shift Z redo.</p>
     <div className="timeline-heading"><h3>Capture-time timeline</h3><label><span className="sr-only">Jump to photo</span><select value={index} onChange={(event) => choose(Number(event.target.value))}>{records.map((item, i) => <option key={ids.get(item.file)} value={i}>{i + 1}. {getDisplayPath(item.file)}</option>)}</select></label></div>
     <div className="filmstrip" role="group" aria-label="Photo timeline">{window.map((item, offset) => {
       const placement = placements.get(item.file); const i = start + offset;

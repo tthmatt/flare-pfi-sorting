@@ -4,7 +4,7 @@ https://flare-pfi-sorting.vercel.app/
 
 **Current browser app version:** 0.6.0
 
-Version 0.6.0 adds linked side-by-side comparison, a capture-time timeline with
+Version 0.6.0 adds a capture-time timeline with
 split/merge/move and undo/redo, local review saving and backups, a needs-review
 queue, individual folder names and selected-folder downloads, and complete-flight
 accuracy benchmarking against operator-confirmed labels. See the
