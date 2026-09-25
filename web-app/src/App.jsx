@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Analytics } from '@vercel/analytics/react';
 import flareLogo from './assets/flare-dynamics-logo.svg';
 import { analyzeFiles, buildGroups } from './grouping.js';
-import { sortAnalyses } from './ordering.js';
+import { sortAnalyses, groupingOrder } from './ordering.js';
 import { analyzeGpsTurns } from './turnDetection.js';
 import { buildReviewItems } from './review.js';
 import { canPreviewInBrowser, getDisplayPath, getFileName, isImageFile, safePathPart } from './files.js';
@@ -12,9 +12,14 @@ import { analysisProgress, analysisSummary, logStatus } from './telemetry.js';
 import { analyzeVisualPasses } from './visualAnalysis.js';
 import { buildPreviewMovements } from './previewMovement.js';
 import { Icon, PhotoViewer } from './ui.jsx';
+import { useWorkspace } from './useWorkspace.js';
+import { applyEdits, changeMarker, nameGroups } from './workspace.js';
+import { FolderManager, ReviewWorkspace, SessionPanel } from './ReviewWorkspace.jsx';
+import { BenchmarkPanel } from './BenchmarkPanel.jsx';
 
-const APP_VERSION = '0.5.0';
+const APP_VERSION = '0.6.0';
 const CHANGELOG = [
+  { version: '0.6.0', date: '2026-09-25', changes: ['Added a capture-time filmstrip, boundary moves, merges and undo/redo.', 'Save reviews locally and resume with the same photos; rename and export selected folders.', 'Review missing metadata and inconclusive candidates in one queue, and benchmark complete flights against confirmed labels.'] },
   {
     version: '0.5.0', date: '2026-09-24',
     changes: ['Redesigned the desktop workspace with a compact settings sidebar and a clear import, review and export workflow.', 'Added folder and review filters, larger photo previews, full-size image viewing and clearer folder-start labels.', 'Kept telemetry, detailed guidance and version history available in collapsible sections.'],
@@ -156,7 +161,6 @@ export default function App() {
   const visualController = useRef(null);
   const [files, setFiles] = useState([]);
   const [analyses, setAnalyses] = useState([]);
-  const [markerOverrides, setMarkerOverrides] = useState(() => new Map());
   const [elapsedMs, setElapsedMs] = useState(0);
   const [calibrationKey, setCalibrationKey] = useState(0);
   const [status, setStatus] = useState('Choose a folder or images to begin.');
@@ -190,15 +194,22 @@ export default function App() {
   });
 
   const imageFiles = useMemo(() => files.filter(isImageFile), [files]);
+  const workspace = useWorkspace(imageFiles, settings, setSettings);
+  const busy = isWorking || workspace.restoring;
+  const markerOverrides = useMemo(() => new Map(imageFiles.filter((file) => workspace.edits.markers[workspace.ids.get(file)])
+    .map((file) => [file, workspace.edits.markers[workspace.ids.get(file)]])), [imageFiles, workspace.edits.markers, workspace.ids]);
+  const dismissedFiles = useMemo(() => new Set(imageFiles.filter((file) => workspace.edits.dismissed[workspace.ids.get(file)])), [imageFiles, workspace.edits.dismissed, workspace.ids]);
   const totalSize = useMemo(() => imageFiles.reduce((sum, file) => sum + file.size, 0), [imageFiles]);
-  const reviewedAnalyses = useMemo(() => analyses.map((item) => ({ ...item, markerOverride: markerOverrides.get(item.file) ?? 'auto' })), [analyses, markerOverrides]);
-  const { groups, skippedMarkerCount } = useMemo(() => buildGroups(reviewedAnalyses, settings), [reviewedAnalyses, settings]);
+  const reviewedAnalyses = useMemo(() => applyEdits(analyses, workspace.ids, workspace.edits), [analyses, workspace.ids, workspace.edits]);
+  const { groups: rawGroups, skippedMarkerCount } = useMemo(() => buildGroups(reviewedAnalyses, settings), [reviewedAnalyses, settings]);
+  const groups = useMemo(() => nameGroups(rawGroups, workspace.ids, workspace.edits.names), [rawGroups, workspace.ids, workspace.edits.names]);
   const captureOrderedAnalyses = useMemo(() => sortAnalyses(reviewedAnalyses, 'capture'), [reviewedAnalyses]);
   const previewMovements = useMemo(() => buildPreviewMovements(analyses), [analyses]);
   const { proposals: turnCandidates, reasonCounts: turnReasonCounts } = useMemo(() => settings.proposeGpsTurns
     ? analyzeGpsTurns(captureOrderedAnalyses, settings) : { proposals: [], reasonCounts: {} }, [captureOrderedAnalyses, settings]);
   const unknownPitchCount = useMemo(() => analyses.filter((item) => item.pitch === null).length, [analyses]);
-  const hasInspectionSplits = reviewedAnalyses.some((item) => item.markerOverride === 'split');
+  const hasInspectionSplits = reviewedAnalyses.some((item) => item.markerOverride === 'split' || item.boundaryOverride === 'join');
+  const chronological = groupingOrder(reviewedAnalyses, settings) === 'capture';
 
   useEffect(() => () => visualController.current?.abort(), []);
 
@@ -209,16 +220,19 @@ export default function App() {
   function updateSetting(key, value) {
     setSettings((current) => ({ ...current, [key]: value }));
     setCalibrationKey((keyValue) => keyValue + 1);
+    if (!['folderPrefix', 'keepFolderPaths', 'removeCsvReport'].includes(key)) {
+      setVisualResult(null);
+      workspace.edit((edits) => ({ ...edits, resolved: {} }));
+    }
   }
 
   function handleFileList(fileList) {
-    if (isWorking) return;
+    if (busy) return;
     const selected = Array.from(fileList || []);
     setFiles(selected);
     setSelectedFolder('');
     setAnalyses([]);
     setVisualResult(null);
-    setMarkerOverrides(new Map());
     setElapsedMs(0);
     setCalibrationKey((key) => key + 1);
     const imageCount = selected.filter(isImageFile).length;
@@ -227,23 +241,19 @@ export default function App() {
 
   function setMarkerOverride(file, mode) {
     if (mode === 'split') setSettings((current) => ({ ...current, sortBy: 'capture' }));
-    setMarkerOverrides((current) => {
-      const next = new Map(current);
-      if (mode === 'auto') next.delete(file);
-      else next.set(file, mode);
-      return next;
-    });
+    workspace.edit((edits) => changeMarker(edits, workspace.ids.get(file), mode));
     setCalibrationKey((key) => key + 1);
     setStatus('Correction applied. Folder preview and ZIP are updated.');
   }
 
   function resetMarkerOverrides() {
-    setMarkerOverrides(new Map());
+    workspace.edit((edits) => ({ ...edits, markers: {}, joins: {}, resolved: {} }));
     setCalibrationKey((key) => key + 1);
     setStatus('Corrections reset. Automatic sorting restored.');
   }
 
   async function handleAnalyze() {
+    if (busy) return;
     if (!imageFiles.length) {
       setStatus('Select JPG, TIFF, PNG, or DNG images first.');
       return;
@@ -303,6 +313,23 @@ export default function App() {
     }
   }
 
+  async function handleDownloadSelected(selected) {
+    if (!selected.length || busy) return;
+    setIsWorking(true);
+    try {
+      setStatus(`Creating ZIP with ${selected.length} selected folders…`);
+      downloadBlob(await makeZip(selected, settings.keepFolderPaths, !settings.removeCsvReport), `${safePathPart(settings.folderPrefix)}_selected.zip`);
+      setStatus(`Downloaded ${selected.length} selected folders. Other folders remain in your review.`);
+    } catch (error) { setStatus(error.message); }
+    finally { setIsWorking(false); }
+  }
+
+  function reviewPhoto(file) {
+    workspace.setActiveId(workspace.ids.get(file));
+    document.getElementById('boundary-review')?.scrollIntoView({ block: 'start' });
+    document.getElementById('boundary-review')?.focus({ preventScroll: true });
+  }
+
   return (
     <main className="app-shell">
       <header className="app-header">
@@ -323,7 +350,7 @@ export default function App() {
         <aside className="panel controls" aria-label="Sort settings">
           <div className="panel-heading"><h2><Icon name="settings" /> Sort settings</h2><span className="badge">Local</span></div>
           <p className="section-description">Set up your inspection folders.</p>
-          <fieldset disabled={isWorking}>
+          <fieldset disabled={busy}>
             <legend className="sr-only">Sorting and export options</legend>
             <label>Folder prefix<input type="text" value={settings.folderPrefix} onChange={(event) => updateSetting('folderPrefix', event.target.value)} /></label>
             <p className="field-hint folder-example">{safePathPart(settings.folderPrefix)}_001</p>
@@ -359,20 +386,22 @@ export default function App() {
 
         <section className="content">
           <section className={`panel import-panel ${isDragging ? 'is-dragging' : ''} ${imageFiles.length ? 'has-files' : ''}`} aria-label="Add inspection photos"
-            onDragOver={(event) => { event.preventDefault(); if (!isWorking) setIsDragging(true); }}
+            onDragOver={(event) => { event.preventDefault(); if (!busy) setIsDragging(true); }}
             onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setIsDragging(false); }}
             onDrop={(event) => { event.preventDefault(); setIsDragging(false); handleFileList(event.dataTransfer.files); }}>
             <div className="import-icon"><Icon name={imageFiles.length ? 'images' : 'upload'} /></div>
             <div className="import-copy"><h2>{imageFiles.length ? `${imageFiles.length.toLocaleString()} photos selected` : 'Add your inspection photos'}</h2><p>{imageFiles.length ? `${formatBytes(totalSize)} · ${files.length - imageFiles.length} unsupported files ignored` : 'Drop image files here, or choose a folder to get started.'}</p><span className="file-types">JPG · PNG · TIFF · DNG</span></div>
             <div className="import-actions"><div className="button-row">
-              <button type="button" className={imageFiles.length ? 'secondary' : ''} onClick={() => folderInputRef.current?.click()} disabled={isWorking}><Icon name="folder" />{imageFiles.length ? 'Change folder' : 'Choose folder'}</button>
-              <button type="button" className="secondary" onClick={() => fileInputRef.current?.click()} disabled={isWorking}>Choose files</button>
-            </div>{imageFiles.length > 0 && <button type="button" onClick={handleAnalyze} disabled={isWorking}><Icon name="scan" />{analyses.length ? 'Re-analyze images' : 'Analyze images'}<Icon name="arrow" /></button>}</div>
+              <button type="button" className={imageFiles.length ? 'secondary' : ''} onClick={() => folderInputRef.current?.click()} disabled={busy}><Icon name="folder" />{imageFiles.length ? 'Change folder' : 'Choose folder'}</button>
+              <button type="button" className="secondary" onClick={() => fileInputRef.current?.click()} disabled={busy}>Choose files</button>
+            </div>{imageFiles.length > 0 && <button type="button" onClick={handleAnalyze} disabled={busy}><Icon name="scan" />{analyses.length ? 'Re-analyze images' : 'Analyze images'}<Icon name="arrow" /></button>}</div>
             <input ref={folderInputRef} className="hidden-input" type="file" aria-label="Choose image folder" webkitdirectory="" directory="" multiple onChange={(event) => handleFileList(event.target.files)} />
             <input ref={fileInputRef} className="hidden-input" type="file" aria-label="Choose image files" multiple accept=".jpg,.jpeg,.tif,.tiff,.png,.dng" onChange={(event) => handleFileList(event.target.files)} />
           </section>
 
           <div className="status-line" role="status" aria-live="polite" aria-atomic="true"><Icon name={isWorking ? 'loader' : analyses.length ? 'check' : 'info'} className={isWorking ? 'spin' : ''} /><span>{status}</span></div>
+
+          <SessionPanel workspace={workspace} disabled={busy} onImported={() => { setVisualResult(null); setStatus('Review restored. Folder decisions and settings are updated.'); }} onError={setStatus} />
 
           {analyses.length > 0 && <div className="metric-grid" aria-label="Analysis summary">
             <div><Icon name="images" /><strong>{analyses.length.toLocaleString()}</strong><span>Photos analyzed</span></div>
@@ -383,16 +412,26 @@ export default function App() {
 
           <section className="panel folder-panel">
             <div className="panel-heading"><div><h2><Icon name="folder" /> Folder plan</h2><p className="section-description">{groups.length ? 'Select a folder to review its photos.' : 'Your inspection passes will appear here.'}</p></div><span className="badge">{groups.length ? `${groups.length} folders` : analyses.length ? 'No output' : 'Waiting for photos'}</span></div>
-            {groups.length ? <FolderTable groups={groups} selectedFolder={selectedFolder} onSelect={(name) => { setSelectedFolder(name); setReviewResetKey((key) => key + 1); document.getElementById('photo-review')?.scrollIntoView({ block: 'start' }); }} /> : analyses.length
+            {groups.length ? <FolderManager groups={groups} records={captureOrderedAnalyses} workspace={workspace} disabled={busy} chronological={chronological} onExport={handleDownloadSelected} onSelect={(group) => { setSelectedFolder(group.name); reviewPhoto(group.files[0].file); }} /> : analyses.length
               ? <p className="empty-state">All photos are skipped markers. Review their folder decisions below or turn off “Skip marker photos”.</p>
               : <EmptyState />}
           </section>
 
-          {analyses.length > 0 && <VisualPassPanel result={visualResult} working={visualWorking} disabled={isWorking}
-            analyses={captureOrderedAnalyses} movements={previewMovements} overrides={markerOverrides} onAnalyze={handleVisualAnalyze}
-            onCancel={() => visualController.current?.abort()} onOverride={setMarkerOverride} />}
+          {analyses.length > 0 && <ReviewWorkspace records={captureOrderedAnalyses} groups={groups} workspace={workspace} visual={visualResult} disabled={busy} chronological={chronological} onCaptureOrder={() => updateSetting('sortBy', 'capture')} />}
 
-          {analyses.length > 0 && <Preview key={`${selectedFolder}:${reviewResetKey}`} analyses={reviewedAnalyses} groups={groups} settings={settings} movements={previewMovements} onOverride={setMarkerOverride} onReset={resetMarkerOverrides} overrideCount={markerOverrides.size} disabled={isWorking} selectedFolder={selectedFolder} onSelectFolder={setSelectedFolder} />}
+          {analyses.length > 0 && <VisualPassPanel result={visualResult} working={visualWorking} disabled={busy}
+            analyses={captureOrderedAnalyses} movements={previewMovements} overrides={markerOverrides} onAnalyze={handleVisualAnalyze}
+            onCancel={() => visualController.current?.abort()} onOverride={setMarkerOverride} dismissed={dismissedFiles}
+            onDismiss={(file) => workspace.edit((edits) => ({ ...edits, dismissed: { ...edits.dismissed, [workspace.ids.get(file)]: true } }))} onReview={reviewPhoto}
+            onAccept={(source, file) => { setSettings((current) => ({ ...current, sortBy: 'capture' })); workspace.edit((edits) => ({ ...changeMarker(edits, workspace.ids.get(file), 'split'), dismissed: { ...edits.dismissed, [workspace.ids.get(source)]: true } })); }}
+            onUndoAccepted={(source, decision) => workspace.edit((edits) => {
+              const next = changeMarker(edits, workspace.ids.get(decision.file), decision.priorMode);
+              if (decision.priorJoined) next.joins[workspace.ids.get(decision.file)] = true;
+              return { ...next, dismissed: { ...next.dismissed, [workspace.ids.get(source)]: decision.priorDismissed } };
+            })} />}
+
+          {analyses.length > 0 && <Preview key={`${selectedFolder}:${reviewResetKey}`} analyses={reviewedAnalyses} groups={groups} settings={settings} movements={previewMovements} onOverride={setMarkerOverride} onReset={resetMarkerOverrides} overrideCount={markerOverrides.size + Object.keys(workspace.edits.joins).length} disabled={busy} selectedFolder={selectedFolder} onSelectFolder={setSelectedFolder} onReview={reviewPhoto} />}
+          {analyses.length > 0 && <BenchmarkPanel key={workspace.manifest?.id ?? 'unsaved'} groups={groups} records={captureOrderedAnalyses} workspace={workspace} settings={settings} appVersion={APP_VERSION} disabled={busy} chronological={chronological} onBusy={setIsWorking} />}
           {analyses.length > 0 && <TelemetryCoverage analyses={analyses} />}
           {analyses.length > 0 && settings.proposeGpsTurns && <TurnProposalPanel key={calibrationKey} proposals={turnCandidates} reasons={turnReasonCounts} analyses={captureOrderedAnalyses} movements={previewMovements} settings={settings} />}
           <Changelog />
@@ -400,7 +439,7 @@ export default function App() {
       </div>
       <footer className="export-bar">
         <div className="export-summary"><Icon name="folder" /><div><strong>{groups.length ? `${groups.length} folders · ${groups.reduce((count, group) => count + group.files.length, 0).toLocaleString()} photos in ZIP` : 'Your next inspection, organized.'}</strong><span>{analyses.length ? analysisSummary(groups, skippedMarkerCount, elapsedMs, analyses.length) : 'Add photos and analyze them to build your folder plan.'}</span></div></div>
-        <div className="export-actions">{analyses.length > 0 && <span className="export-reminder">Review each pass before exporting</span>}<button type="button" className="download" onClick={handleDownloadZip} disabled={isWorking || !groups.length}><Icon name="download" /> Download ZIP<Icon name="arrow" /></button></div>
+        <div className="export-actions">{analyses.length > 0 && <span className="export-reminder">Review each pass before exporting</span>}<button type="button" className="download" onClick={handleDownloadZip} disabled={busy || !groups.length}><Icon name="download" /> Download ZIP<Icon name="arrow" /></button></div>
       </footer>
       <Analytics />
     </main>
@@ -419,26 +458,25 @@ const VISUAL_REASON_LABELS = {
   'ambiguous-visual-motion': 'Matched details do not establish a consistent sideways shift.',
 };
 
-function VisualPassPanel({ result, working, disabled, analyses, movements, overrides, onAnalyze, onCancel, onOverride }) {
+function VisualPassPanel({ result, working, disabled, analyses, movements, overrides, onAnalyze, onCancel, onOverride, dismissed, onDismiss, onReview, onAccept, onUndoAccepted }) {
   const [active, setActive] = useState(0);
-  const [dismissed, setDismissed] = useState(() => new Set());
   const [chosen, setChosen] = useState(null);
   const [applied, setApplied] = useState(() => new Map());
-  useEffect(() => { setActive(0); setDismissed(new Set()); setChosen(null); setApplied(new Map()); }, [result]);
+  useEffect(() => { setActive(0); setChosen(null); setApplied(new Map()); }, [result]);
   const proposal = result?.proposals[Math.min(active, result.proposals.length - 1)];
   const unconfirmedSweeps = result?.reasons['camera-sweep-visual-inconclusive'] ?? 0;
   const start = proposal ? Math.max(0, Math.min(proposal.boundaryIndex - 2, proposal.comparisonBeforeIndex ?? proposal.boundaryIndex)) : 0;
   const end = proposal ? Math.max(proposal.boundaryIndex + 3, (proposal.comparisonAfterIndex ?? proposal.boundaryIndex) + 1) : 0;
   const window = proposal ? analyses.slice(start, end) : [];
   const appliedDecision = proposal && applied.get(proposal.file);
-  const accepted = appliedDecision && overrides.get(appliedDecision.file) === 'split';
+  const accepted = appliedDecision && overrides.get(appliedDecision.file) === 'split' && analyses.find((item) => item.file === appliedDecision.file)?.boundaryOverride !== 'join';
   const boundaryIndex = accepted ? analyses.findIndex((item) => item.file === appliedDecision.file) : chosen ?? proposal?.boundaryIndex;
   const accept = () => {
     const file = analyses[boundaryIndex]?.file;
     if (!file) return;
     const priorMode = overrides.get(file) ?? 'auto';
-    onOverride(file, 'split');
-    setApplied((current) => new Map(current).set(proposal.file, { file, priorMode }));
+    onAccept(proposal.file, file);
+    setApplied((current) => new Map(current).set(proposal.file, { file, priorMode, priorDismissed: dismissed.has(proposal.file), priorJoined: analyses[boundaryIndex].boundaryOverride === 'join' }));
   };
   return <section className="panel visual-pass-panel" aria-label="Visual pass suggestions">
     <div className="suggestion-heading"><div><div className="panel-heading"><h2><Icon name="scan" /> Visual pass suggestions</h2><span className="badge">Experimental</span></div><p className="section-description">Missed a marker? Find possible pass boundaries, then review and accept each one.</p></div>
@@ -463,6 +501,7 @@ function VisualPassPanel({ result, working, disabled, analyses, movements, overr
       <div className="preview-grid pass-comparison">{window.map((item, offset) => <article key={start + offset} className={`preview-card ${start + offset === boundaryIndex ? 'chosen-boundary' : ''}`}>
         <span>{start + offset === boundaryIndex ? 'NEW FOLDER START' : start + offset < boundaryIndex ? 'Before boundary' : 'After boundary'}</span>
         <ImageThumbnail file={item.file} /><strong>{getFileName(item.file)}</strong>
+        <button type="button" className="secondary" onClick={() => onReview(item.file)}>Edit in timeline</button>
         <span>{formatAltitude(item.altitude)} · pitch {formatPitch(item.pitch)}</span>
         <SidewaysMovement movement={movements.get(item.file)} />
       </article>)}</div>
@@ -473,11 +512,11 @@ function VisualPassPanel({ result, working, disabled, analyses, movements, overr
       </label>
       {accepted ? <div><p>Accepted: {getFileName(appliedDecision.file)}. The photo stays in the ZIP.</p>
         <button type="button" className="secondary" disabled={disabled} onClick={() => {
-          onOverride(appliedDecision.file, appliedDecision.priorMode);
+          onUndoAccepted(proposal.file, appliedDecision);
           setApplied((current) => { const next = new Map(current); next.delete(proposal.file); return next; });
         }}>Undo accepted boundary</button></div> : <div className="button-grid">
         <button type="button" disabled={disabled} onClick={accept}>Accept boundary · keep photo</button>
-        <button type="button" className="secondary" disabled={disabled} onClick={() => setDismissed((current) => new Set(current).add(proposal.file))}>Dismiss suggestion</button>
+        <button type="button" className="secondary" disabled={disabled} onClick={() => onDismiss(proposal.file)}>Dismiss suggestion</button>
       </div>}
       <div className="button-grid">
         <button type="button" className="secondary" disabled={disabled || active === 0} onClick={() => { setActive(active - 1); setChosen(null); }}>Previous suggestion</button>
@@ -571,24 +610,7 @@ function EmptyState() {
   return <div className="folder-empty"><div className="empty-folders" aria-hidden="true"><Icon name="folder" /><Icon name="folder" /><Icon name="folder" /></div><h3>A clear folder for every inspection pass</h3><p>Analyze your photos to detect pitch markers and build a folder plan.<br />You can review and adjust every boundary before exporting.</p><span><Icon name="shield" /> Original files stay unchanged</span></div>;
 }
 
-function FolderTable({ groups, selectedFolder, onSelect }) {
-  return (
-    <div className="table-wrap" tabIndex={0} role="region" aria-label="Output folders">
-      <table>
-        <thead><tr><th scope="col">Output folder</th><th scope="col">Photos</th><th scope="col">Starts with</th><th scope="col">Size</th><th scope="col"><span className="sr-only">Review folder</span></th></tr></thead>
-        <tbody>{groups.map((group, index) => (
-          <tr key={group.name} className={selectedFolder === group.name ? 'selected-row' : ''}>
-            <td><button type="button" className="folder-link" onClick={() => onSelect(group.name)}><span className="folder-number">{String(index + 1).padStart(2, '0')}</span><Icon name="folder" /><span>{group.name}</span></button></td>
-            <td className="tabular">{group.files.length}</td><td><span className="reason-badge">{startReasonLabel(group.startReason)}</span></td><td className="table-size tabular">{formatBytes(group.size)}</td>
-            <td><button type="button" className="icon-button secondary" aria-label={`Review ${group.name}`} onClick={() => onSelect(group.name)}><Icon name="arrow" /></button></td>
-          </tr>
-        ))}</tbody>
-      </table>
-    </div>
-  );
-}
-
-function Preview({ analyses, groups, settings, movements, onOverride, onReset, overrideCount, disabled, selectedFolder, onSelectFolder }) {
+function Preview({ analyses, groups, settings, movements, onOverride, onReset, overrideCount, disabled, selectedFolder, onSelectFolder, onReview }) {
   const [visibleCount, setVisibleCount] = useState(100);
   const [search, setSearch] = useState('');
   const [reviewFilter, setReviewFilter] = useState('all');
@@ -600,7 +622,7 @@ function Preview({ analyses, groups, settings, movements, onOverride, onReset, o
   const filters = [
     { id: 'all', label: 'All photos', matches: () => true },
     { id: 'starts', label: 'Folder starts', matches: (item) => Boolean(item.startReason) },
-    { id: 'corrected', label: 'Corrected', matches: (item) => item.markerOverride !== 'auto' },
+    { id: 'corrected', label: 'Corrected', matches: (item) => item.markerOverride !== 'auto' || item.boundaryOverride === 'join' },
     { id: 'skipped', label: 'Skipped markers', matches: (item) => !item.groupName },
     { id: 'unknown', label: 'Unknown pitch', matches: (item) => item.pitch === null },
   ];
@@ -618,7 +640,7 @@ function Preview({ analyses, groups, settings, movements, onOverride, onReset, o
         <button type="button" className="secondary reset-button" disabled={disabled || !overrideCount} onClick={onReset}><Icon name="reset" />Reset corrections ({overrideCount})</button>
       </div>
       <div className="review-filters" role="group" aria-label="Filter photos by review status">{filters.map((filter) => <button type="button" key={filter.id} aria-pressed={reviewFilter === filter.id} onClick={() => { setReviewFilter(filter.id); setVisibleCount(100); }}>{filter.label}<span>{inFolder.filter(filter.matches).length}</span></button>)}</div>
-      <details className="inline-help"><summary>Folder decisions & movement guide</summary><p>Use “Start folder here (keep photo)” for the first inspection photo of a new pass. Use the marker option for a downward marker with incorrect recorded pitch. “Keep in current folder” prevents a split at that photo. Corrections update folders and the ZIP immediately.</p><p>Skipped markers stay visible here. Corrections are kept when you re-analyze, and cleared when you choose new files or reload the page.</p><p>Sideways movement is a GPS estimate from the previous photo with a valid capture time, including skipped markers. Left/right is relative to that photo’s camera heading. Search and display order do not change the comparison.</p></details>
+      <details className="inline-help"><summary>Folder decisions & movement guide</summary><p>Use “Start folder here (keep photo)” for the first inspection photo of a new pass. Use the marker option for a downward marker with incorrect recorded pitch. “Keep in current folder” prevents a split at that photo. Corrections update folders and the ZIP immediately.</p><p>Skipped markers stay visible here. Reviews save locally when available; after reloading, reselect the same original folder to resume. Download a review backup for safekeeping.</p><p>Sideways movement is a GPS estimate from the previous photo with a valid capture time, including skipped markers. Left/right is relative to that photo’s camera heading. Search and display order do not change the comparison.</p></details>
       {!filteredItems.length && <div className="empty-state"><strong>No photos match these filters.</strong><p>Try a different filename, folder or review status.</p><button type="button" className="secondary" onClick={resetFilters}>Clear filters</button></div>}
       <div className="preview-grid review-grid">
         {visibleItems.map((item) => (
@@ -631,6 +653,8 @@ function Preview({ analyses, groups, settings, movements, onOverride, onReset, o
               <div className="photo-telemetry"><div><span>Recorded pitch</span><strong>{formatPitch(item.pitch)}</strong></div><div><span>Altitude</span><strong>{formatAltitude(item.altitude)}</strong></div></div>
               <div className="movement-block"><SidewaysMovement movement={movements.get(item.file)} /></div>
               {item.startReason && <span className="start-reason"><Icon name="marker" />{startReasonLabel(item.startReason)}</span>}
+              <button type="button" className="secondary" onClick={() => onReview(item.file)}>Edit in timeline</button>
+              {item.boundaryOverride === 'join' && <span className="manual-label">Boundary merged · Undo in timeline workspace</span>}
               <label>Folder decision<select aria-label={`Folder decision for ${getDisplayPath(item.file)}`} value={item.markerOverride} disabled={disabled} onChange={(event) => onOverride(item.file, event.target.value)}>
                 <option value="auto">Automatic</option><option value="split">Start folder here (keep photo)</option><option value="marker">Start folder here (marker)</option><option value="normal">Keep in current folder (inspection photo)</option>
               </select></label>

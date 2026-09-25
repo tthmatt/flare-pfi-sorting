@@ -4,7 +4,8 @@ export async function analyzeVisualPasses(records, settings, { signal, onProgres
   const { candidates, reasons } = findVisualPassCandidates(records, settings);
   // Bound a review session. The UI reports any candidates not checked.
   const selected = candidates.slice(0, 200);
-  const result = { proposals: [], reasons, unchecked: candidates.length - selected.length };
+  const result = { proposals: [], reasons, unchecked: candidates.length - selected.length,
+    reviewCandidates: candidates.slice(200).map((candidate) => ({ boundaryIndex: candidate.boundaryIndex, reason: 'not-checked' })) };
   if (!selected.length) return result;
   if (signal?.aborted) throw new DOMException('Visual analysis cancelled.', 'AbortError');
   return new Promise((resolve, reject) => {
@@ -24,6 +25,7 @@ export async function analyzeVisualPasses(records, settings, { signal, onProgres
         const candidate = selected[data.index];
         if (candidate.requiresVisualSupport && !data.visual.supported) {
           result.reasons['camera-sweep-visual-inconclusive'] = (result.reasons['camera-sweep-visual-inconclusive'] ?? 0) + 1;
+          result.reviewCandidates.push({ boundaryIndex: candidate.boundaryIndex, reason: data.visual.reason });
         } else {
           result.proposals.push({ ...candidate, file: records[candidate.boundaryIndex].file,
             beforeFile: records[candidate.beforeIndex].file,

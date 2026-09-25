@@ -1,7 +1,7 @@
 import { getDisplayPath } from './files.js';
 
 export function groupingOrder(analyses, settings) {
-  return settings.inferAltitudeTurns || analyses.some((item) => item.markerOverride === 'split') ? 'capture' : settings.sortBy;
+  return settings.inferAltitudeTurns || analyses.some((item) => item.markerOverride === 'split' || item.boundaryOverride === 'join') ? 'capture' : settings.sortBy;
 }
 
 export function sortAnalyses(analyses, sortBy) {
