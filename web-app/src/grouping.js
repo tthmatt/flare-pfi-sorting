@@ -12,6 +12,7 @@ export function buildGroups(analyses, settings) {
   let currentGroup = null;
   let pendingNewGroup = false;
   let pendingStartReason = null;
+  let pendingStartFile = null;
   let skippedMarkerCount = 0;
   const markers = ordered.map((item) => isMarkerImage(item, settings));
   // Explicit folder starts take priority. Automatic markers in one consecutive
@@ -35,21 +36,24 @@ export function buildGroups(analyses, settings) {
       if (pitchStarts[index] && item.boundaryOverride !== 'join') {
         pendingNewGroup = true;
         pendingStartReason = startReason;
+        pendingStartFile = item.file;
       }
       continue;
     }
     if (pendingNewGroup || !currentGroup || startsNewFolder) {
+      const boundaryFile = startsNewFolder ? item.file : pendingStartFile ?? item.file;
       if (pendingNewGroup) {
         startReason = startReason ?? pendingStartReason;
         startsNewFolder = true;
       }
       currentGroup = {
         name: `${safePathPart(settings.folderPrefix)}_${String(groups.length + 1).padStart(3, '0')}`,
-        files: [], startReason: startReason ?? 'first-image', size: 0,
+        files: [], startReason: startReason ?? 'first-image', size: 0, boundaryFile,
       };
       groups.push(currentGroup);
       pendingNewGroup = false;
       pendingStartReason = null;
+      pendingStartFile = null;
     }
     currentGroup.files.push({ ...item, startsNewFolder, startReason: startReason ?? (!currentGroup.files.length && groups.length === 1 ? 'first-image' : null) });
     currentGroup.size += item.file.size;

@@ -34,7 +34,7 @@ test('merging across a skipped marker preserves the excluded image and all inspe
 
 test('moving a boundary works on retained photos, preserves custom name, and undo restores all edits', () => {
   const { records, ids, plan } = sample(); let edits = emptyEdits();
-  edits.names[ids.get(records[3].file)] = 'West elevation';
+  edits.names[plan(edits)[1].id] = 'West elevation';
   const before = plan(edits);
   const later = moveBoundary(edits, 1, 1, before, records, ids);
   assert.deepEqual(plan(later).map((g) => g.files.length), [3, 2]);
@@ -59,7 +59,7 @@ test('boundary moves cannot consume the only photo of either neighbouring pass',
 
 test('renames are safe and collision-free, and exporting selected groups includes only their records', async () => {
   const { records, ids, plan } = sample();
-  const edits = emptyEdits(); edits.names[ids.get(records[0].file)] = '../West/Face'; edits.names[ids.get(records[3].file)] = 'West-Face';
+  const edits = emptyEdits(); edits.names[ids.get(records[0].file)] = '../West/Face'; edits.names[plan(edits)[1].id] = 'West-Face';
   const groups = plan(edits);
   assert.deepEqual(groups.map((g) => g.name), ['West-Face', 'West-Face_2']);
   const zip = await JSZip.loadAsync(await (await makeZip([groups[1]], false, true)).arrayBuffer());
@@ -73,6 +73,16 @@ test('ZIP name collisions cannot overwrite an existing numbered filename', async
   const entries = Object.values(zip.files).filter((file) => !file.dir);
   assert.equal(entries.length, 4);
   assert.deepEqual((await Promise.all(entries.map((file) => file.async('string')))).sort(), ['0', '1', '2', '3']);
+});
+
+test('a custom folder name stays anchored to its marker when marker output is toggled', () => {
+  const { records, ids, plan } = sample(); const edits = emptyEdits();
+  edits.names[plan(edits)[1].id] = 'East face';
+  for (const skipMarkers of [true, false, true]) {
+    const groups = nameGroups(buildGroups(records, { ...settings, skipMarkers }).groups, ids, edits.names);
+    assert.equal(groups[1].name, 'East_face');
+    assert.equal(groups[1].id, ids.get(records[2].file));
+  }
 });
 
 test('review queue names inconclusive and unchecked candidates and distinguishes reviewed from corrected', () => {

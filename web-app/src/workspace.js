@@ -35,7 +35,7 @@ export function applyEdits(analyses, ids, edits) {
 export function nameGroups(groups, ids, names) {
   const used = new Set();
   return groups.map((group) => {
-    const id = ids.get(group.files[0].file);
+    const id = ids.get(group.boundaryFile ?? group.files[0].file);
     const base = safePathPart(names[id] || group.name).slice(0, 100);
     let name = base; let suffix = 2;
     while (used.has(name.toLowerCase())) name = `${base}_${suffix++}`;

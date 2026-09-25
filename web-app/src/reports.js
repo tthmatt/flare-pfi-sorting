@@ -36,5 +36,7 @@ export function downloadBlob(blob, filename) {
   document.body.appendChild(link);
   link.click();
   link.remove();
-  URL.revokeObjectURL(url);
+  // Let the browser consume the URL before releasing it. Immediate revocation
+  // can race the asynchronous download/navigation in some browsers.
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
 }
