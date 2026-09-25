@@ -15,7 +15,8 @@ export function BenchmarkPanel({ groups, records, workspace, settings, appVersio
   const [lastResult, setLastResult] = useState(null);
   const [evaluatedPlan, setEvaluatedPlan] = useState(null);
   const controller = useRef(null); const input = useRef(null);
-  const signature = planSignature(groups, workspace.ids);
+  const labels = labelPlan(groups, records, workspace.ids, settings);
+  const signature = JSON.stringify([planSignature(groups, workspace.ids), labels]);
   const confirmed = confirmedPlan === signature;
   useEffect(() => {
     try { const saved = localStorage.getItem(BENCHMARK_KEY); if (saved) setRows(validateBenchmarks(JSON.parse(saved))); }
@@ -31,7 +32,7 @@ export function BenchmarkPanel({ groups, records, workspace, settings, appVersio
     if (!confirmed || !chronological) return;
     const abort = new AbortController(); controller.current = abort; setRunning(true); onBusy(true); setLastResult(null);
     try {
-      const result = await evaluateFlight({ records, settings, labels: labelPlan(groups, records, workspace.ids),
+      const result = await evaluateFlight({ records, settings, labels,
         ids: workspace.ids, manifest: workspace.manifest, flightName: workspace.flightName, drone: workspace.drone,
         appVersion, signal: abort.signal, onProgress: (done, total) => setMessage(`Evaluating uncorrected detector: ${done} / ${total} image checks…`) });
       setLastResult(result);
@@ -43,7 +44,7 @@ export function BenchmarkPanel({ groups, records, workspace, settings, appVersio
   }
   const byId = new Map(records.map((item) => [workspace.ids.get(item.file), item.file]));
   return <details className="panel benchmark-panel"><summary><Icon name="chart" /> Detection accuracy · complete flights</summary>
-    <p className="section-description">Review every folder in one complete flight, then confirm the plan as your labels. Evaluation reruns the detector without your manual corrections. The first pass is implicit; all later starts must match the exact first inspection photo.</p>
+    <p className="section-description">Review every folder in one complete flight, then confirm the plan as your labels. Evaluation reruns the detector without your manual corrections. The first pass is implicit; all later starts must match the exact first inspection photo. Marker photos are excluded from scoring even when included in the ZIP.</p>
     <div className="benchmark-fields"><label>Flight name<input type="text" maxLength={100} value={workspace.flightName} disabled={disabled} placeholder="Building A · flight 01" onChange={(event) => workspace.setFlightName(event.target.value)} /></label><label>Drone model<input type="text" maxLength={100} value={workspace.drone} disabled={disabled} placeholder="DJI Mavic 2" onChange={(event) => workspace.setDrone(event.target.value)} /></label></div>
     <label className="check-row"><input type="checkbox" checked={confirmed} disabled={disabled || !groups.length || !chronological} onChange={(event) => setConfirmedPlan(event.target.checked ? signature : null)} /><span>I checked the complete flight and every folder boundary. Use this plan as the confirmed labels.<small>Changing folder membership requires confirmation again. Use capture-time order for evaluation.</small></span></label>
     <div className="button-row"><button disabled={disabled || !confirmed || !workspace.manifest || !workspace.flightName.trim() || !workspace.drone.trim()} onClick={run}>Evaluate complete flight</button>{running && <button className="secondary" onClick={() => controller.current?.abort()}>Cancel benchmark</button>}<button className="secondary" disabled={!rows.length} onClick={() => downloadBlob(new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json' }), 'pfi-flight-benchmarks.json')}>Export benchmark JSON</button><button className="secondary" disabled={disabled} onClick={() => input.current.click()}>Import benchmark JSON</button></div>

@@ -77,7 +77,10 @@ Version 0.6.0 adds five desktop review tools:
    are the labels, not the predictions. Results separately count correct starts,
    missed boundaries and incorrect splits, with exact first-inspection-photo
    matching (a one-photo error is both a miss and an incorrect split). The first
-   pass is implicit. Precision/recall show N/A for a zero denominator. Worker runs
+   pass is implicit. Marker photos are excluded from labels and scoring even when
+   included in the ZIP; marker-only folders do not count as inspection passes.
+   Manual marker/inspection decisions and custom pitch thresholds are respected.
+   Precision/recall show N/A for a zero denominator. Worker runs
    exceeding 200 candidates are incomplete and cannot enter the benchmark.
 
 Benchmark results are saved locally, can be exported/imported as JSON, and are

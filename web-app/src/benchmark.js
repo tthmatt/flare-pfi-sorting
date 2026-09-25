@@ -1,4 +1,5 @@
 import { buildGroups } from './grouping.js';
+import { isMarkerImage } from './markers.js';
 import { analyzeVisualPasses } from './visualAnalysis.js';
 
 export const BENCHMARK_KEY = 'pfi.flight-benchmarks.v1';
@@ -16,9 +17,14 @@ export function scoreBoundaries(expected, predicted) {
     recall: truth.size ? matched.length / truth.size : null };
 }
 
-export function labelPlan(groups, records, ids) {
-  const retained = new Set(groups.flatMap((group) => group.files.map((item) => ids.get(item.file))));
-  return { expected: groups.slice(1).map((group) => ids.get(group.files[0].file)),
+export function labelPlan(groups, records, ids, settings) {
+  // Score inspection-photo boundaries regardless of the ZIP's marker setting.
+  // Keep the operator's grouping and marker corrections; do not rerun detection
+  // to derive truth. A marker-only folder has no inspection pass to label.
+  const inspectionGroups = groups.map((group) => group.files.filter((item) => !isMarkerImage(item, settings)))
+    .filter((files) => files.length > 0);
+  const retained = new Set(inspectionGroups.flatMap((files) => files.map((item) => ids.get(item.file))));
+  return { expected: inspectionGroups.slice(1).map((files) => ids.get(files[0].file)),
     retained: records.map((item) => ids.get(item.file)).filter((id) => retained.has(id)) };
 }
 
