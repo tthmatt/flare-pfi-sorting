@@ -3,7 +3,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   altitudeMinSteps: 2, altitudeMinSpan: 5, altitudeMarkerSuppression: 2,
   horizontalMinPhotos: 2, horizontalPitchTolerance: 5, markerPitch: -90,
   folderPrefix: 'flare_inspection', sortBy: 'filename', keepFolderPaths: false,
-  skipMarkers: false, removeCsvReport: true, proposeGpsTurns: false, splitExports: true,
+  skipMarkers: false, removeCsvReport: true, proposeGpsTurns: false, splitExports: false,
   gpsWindowSize: 3, gpsMinDisplacementMeters: 4, gpsMaxClusterRadiusMeters: 3,
   gpsMinSignalRatio: 2, gpsMaxGapSeconds: 30,
 });

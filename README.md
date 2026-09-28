@@ -18,7 +18,8 @@ there is no command-line sorter or local file-moving service to install.
 4. Optionally run **Visual pass suggestions** to review possible missed
    boundaries. A suggestion changes folders only after you accept it.
 5. Choose whether to skip marker photos, retain source subfolder paths, and
-   include a CSV report, then download every ZIP part shown.
+   include a CSV report, then download the ZIP. If you enable smaller ZIPs,
+   download every part shown.
 
 The app copies the selected image bytes into the download. It does not move,
 rename, or modify the original files. Review filters affect the displayed photos;
@@ -44,15 +45,15 @@ for the checks and limitations.
 
 ## ZIP downloads
 
-Large exports default to smaller ZIPs with about 250 MiB of input photos per
-part. Download each part using its button and extract all parts into the same
-destination folder. Output names are allocated across the whole export so
-duplicate names remain distinct and consistent between parts.
+Exports use a single ZIP by default. Enable **Split large exports into smaller
+ZIPs** to create parts with about 250 MiB of input photos each. Download each
+part using its button and extract all parts into the same destination folder.
+Output names are allocated across the whole export so duplicate names remain
+distinct and consistent between parts.
 
-You can choose a single ZIP instead. Export progress is shown, and **Cancel
-export** stops the worker without changing your review. A photo larger than
-250 MiB receives its own larger part. The part size is not a cap on total
-browser memory use.
+Export progress is shown, and **Cancel export** stops the worker without changing
+your review. When splitting is enabled, a photo larger than 250 MiB receives its
+own larger part. The part size is not a cap on total browser memory use.
 
 ## How boundaries are found
 

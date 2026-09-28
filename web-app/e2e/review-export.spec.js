@@ -40,7 +40,7 @@ test('ZIP preserves all colliding photo names and original bytes through the rea
   await page.goto('/');
   await analyze(page);
   await page.getByLabel('Remove CSV report from sorted ZIP').uncheck();
-  await page.getByLabel('Split large exports into smaller ZIPs').uncheck();
+  await expect(page.getByLabel('Split large exports into smaller ZIPs')).not.toBeChecked();
   const data = await download(page, page.getByRole('button', { name: 'Download ZIP', exact: true }));
   const zip = await JSZip.loadAsync(data);
   const entries = Object.values(zip.files).filter((entry) => !entry.dir && entry.name.endsWith('.png'));

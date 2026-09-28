@@ -74,23 +74,25 @@ into smaller selections.
 
 ## ZIP exports
 
-**Split large exports into smaller ZIPs** is enabled by default. Parts contain
-about 250 MiB of input photo bytes each. Use each **Download part** button
-separately, then extract all parts into the same destination folder. A part can
-contain pieces of multiple inspection folders. Naming is allocated once across
-the full export, so duplicate or sanitized filenames stay distinct across parts.
+Exports use a single ZIP by default. **Split large exports into smaller ZIPs**
+starts off; enable it to create parts containing about 250 MiB of input photo
+bytes each. Use each **Download part** button separately, then extract all parts
+into the same destination folder. A part can contain pieces of multiple
+inspection folders. Naming is allocated once across the full export, so
+duplicate or sanitized filenames stay distinct across parts.
 When enabled, each part includes the same complete `sort_report.csv`, with an
 `output_path` column for every exported photo. Extracting a later part therefore
 retains the complete audit report.
 
-Clear that option for a single ZIP. Export runs in a worker with progress and a
+Export runs in a worker with progress and a
 **Cancel export** control. Cancellation terminates the active worker and keeps
 the review decisions intact; it does not remove any part already downloaded.
 
-A photo larger than 250 MiB is placed in its own larger part. The part limit is
-based on input bytes, not ZIP overhead, final download size, or total browser
-memory. Smaller parts reduce the amount generated at once, but very large
-individual images or limited-memory devices may still need a smaller selection.
+When splitting is enabled, a photo larger than 250 MiB is placed in its own
+larger part. The part limit is based on input bytes, not ZIP overhead, final
+download size, or total browser memory. Smaller parts reduce the amount
+generated at once, but very large individual images or limited-memory devices
+may still need a smaller selection.
 
 ## Sideways movement in image previews
 
