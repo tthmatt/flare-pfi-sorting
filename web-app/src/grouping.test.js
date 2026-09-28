@@ -12,7 +12,7 @@ const settings = {
 };
 
 function analyze(data) {
-  const ordered = data.map(([pitch, altitude]) => ({ pitch, altitude }));
+  const ordered = data.map(([pitch, altitude], index) => ({ pitch, altitude, altitudeSource: 'relative', captureDate: new Date(index * 1000) }));
   const pitchStarts = ordered.map(({ pitch }) => Math.abs(Math.abs(pitch) - 90) <= 2);
   return inferAltitudeStarts(ordered, pitchStarts, settings);
 }
@@ -23,7 +23,7 @@ const analysisSettings = {
 };
 
 function records(pitches) {
-  return pitches.map((pitch, index) => ({ file: { name: `${index}.jpg`, size: 1 }, pitch, altitude: null, captureDate: null }));
+  return pitches.map((pitch, index) => ({ file: { name: `${index}.jpg`, size: 1 }, pitch, altitude: null, altitudeSource: 'relative', captureDate: new Date(index * 1000) }));
 }
 
 test('manual marker splits a recorded 0-degree photo without changing its pitch, and undo restores grouping', () => {
@@ -174,14 +174,84 @@ test('a pitched-down marker remains primary near a traverse', () => {
   assert.deepEqual([...result.reversalStarts], []);
 });
 
+function altitudeRecords(altitudes) {
+  return altitudes.map((altitude, index) => ({
+    file: { name: `${index}.jpg`, size: 1 }, pitch: -10, altitude,
+    altitudeSource: 'relative', captureDate: new Date(index * 1000),
+  }));
+}
+
+test('altitude inference never joins different altitude datums or an unknown source', () => {
+  const baseline = altitudeRecords([10, 18, 26, 18, 10, 2]);
+  const options = { ...analysisSettings, inferAltitudeTurns: true };
+  assert.equal(buildGroups(baseline, options).groups[1].files[0].file.name, '3.jpg');
+  for (const source of ['absolute', 'gps', null, undefined]) {
+    const items = baseline.map((item, index) => index < 3 ? item : {
+      ...item, altitude: item.altitude + 100, altitudeSource: source,
+    });
+    assert.equal(buildGroups(items, options).groups.length, 1, `source: ${source}`);
+  }
+});
+
+test('missing or invalid altitude breaks both a prior run and an unconfirmed reversal', () => {
+  for (const missing of [null, undefined, NaN, Infinity]) {
+    for (const values of [[10, 18, 26, missing, 18, 10], [10, 18, 26, 18, missing, 10, 2]]) {
+      const items = altitudeRecords(values);
+      const result = inferAltitudeStarts(items, items.map(() => false), settings);
+      assert.deepEqual([...result.reversalStarts], []);
+      assert.deepEqual([...result.horizontalStarts], []);
+    }
+  }
+});
+
+test('missing, non-increasing and distant capture times interrupt automatic altitude evidence', () => {
+  for (const captureDate of [null, undefined, new Date(NaN), new Date(2_000), new Date(1_000), new Date(62_001)]) {
+    const items = altitudeRecords([10, 18, 26, 18, 10, 2]);
+    items[3].captureDate = captureDate;
+    if (captureDate?.getTime() > 2_000) {
+      items[4].captureDate = new Date(captureDate.getTime() + 1_000);
+      items[5].captureDate = new Date(captureDate.getTime() + 2_000);
+    }
+    assert.equal(buildGroups(items, { ...analysisSettings, inferAltitudeTurns: true }).groups.length, 1);
+  }
+});
+
+test('a continuous run after a metadata break can establish its own reversal', () => {
+  const items = altitudeRecords([10, 18, 26, null, 30, 22, 14, 22, 30]);
+  const result = buildGroups(items, { ...analysisSettings, inferAltitudeTurns: true });
+  assert.deepEqual(result.groups.map((group) => group.files[0].file.name), ['0.jpg', '7.jpg']);
+});
+
+test('horizontal-traverse evidence cannot cross metadata discontinuities', () => {
+  for (const breakAt of [3, 4, 5, 6]) {
+    for (const kind of ['source', 'altitude', 'time']) {
+      const items = altitudeRecords([34, 26, 18, 10.5, 10.7, 18, 26]);
+      items[3].pitch = 0; items[4].pitch = 0;
+      if (kind === 'source') for (let i = breakAt; i < items.length; i += 1) items[i].altitudeSource = 'absolute';
+      if (kind === 'altitude') items[breakAt].altitude = null;
+      if (kind === 'time') for (let i = breakAt; i < items.length; i += 1) items[i].captureDate = new Date(100_000 + i * 1000);
+      const result = inferAltitudeStarts(items, items.map(() => false), settings);
+      assert.deepEqual([...result.horizontalStarts], [], `${kind} at ${breakAt}`);
+    }
+  }
+});
+
+test('manual boundaries and markers remain effective when altitude evidence is unavailable', () => {
+  const items = altitudeRecords([10, 18, null, 18, 10]);
+  for (const item of items) { item.altitudeSource = null; item.captureDate = null; }
+  items[2].markerOverride = 'split';
+  items[4].pitch = -90;
+  assert.deepEqual(buildGroups(items, { ...analysisSettings, inferAltitudeTurns: true }).groups.map((group) => group.files[0].file.name), ['0.jpg', '2.jpg', '4.jpg']);
+});
+
 import { readFileSync } from 'node:fs';
 import { buildGroups } from './grouping.js';
 
-const golden = JSON.parse(readFileSync(new URL('../../tests/grouping_golden_vectors.json', import.meta.url), 'utf8'));
+const golden = JSON.parse(readFileSync(new URL('../test-support/golden/grouping_golden_vectors.json', import.meta.url), 'utf8'));
 for (const vector of golden.vectors) {
   test(`shared golden: ${vector.name}`, () => {
     const analyses = vector.images.map(([name, pitch, altitude], index) => ({
-      file: { name, size: 1, lastModified: index }, pitch, altitude,
+      file: { name, size: 1, lastModified: index }, pitch, altitude, altitudeSource: 'relative',
       captureDate: new Date(Date.UTC(2026, 0, 1, 0, 0, index)), error: null,
     }));
     const result = buildGroups(analyses, { ...golden.settings, inferAltitudeTurns: vector.inferAltitudeTurns, skipMarkers: vector.skipMarkers });

@@ -53,8 +53,11 @@ export function matchLateralMotion(before, after, lateralDirection) {
     const key = `${Math.floor(feature.x / 16)},${Math.floor(feature.y / 16)}`;
     if (!cells.has(key)) cells.set(key, feature);
   }
-  const sources = [...cells.values()].slice(0, 400);
-  const targets = descriptors(after, 2);
+  // Every target pixel phase is needed: a two-pixel grid misses exact matches
+  // when either component of the image translation is odd. Limit source points
+  // to keep the denser search bounded within the worker's thumbnail budget.
+  const sources = [...cells.values()].slice(0, 200);
+  const targets = descriptors(after, 1);
   const matches = [];
   for (const source of sources) {
     let best = null; let score = -1; let second = -1;

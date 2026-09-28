@@ -1,9 +1,5 @@
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.venv/
-build/
 dist/
-*.egg-info/
-
 web-app/node_modules/
+.vercel/
+web-app/test-results/
+web-app/playwright-report/

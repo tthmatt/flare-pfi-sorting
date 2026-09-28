@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { METADATA_READ_LIMIT, parseImageMetadataText, readImageMetadata } from './metadata.js';
 
-const golden = JSON.parse(readFileSync(new URL('../../tests/metadata_golden_vectors.json', import.meta.url), 'utf8'));
+const golden = JSON.parse(readFileSync(new URL('../test-support/golden/metadata_golden_vectors.json', import.meta.url), 'utf8'));
 for (const vector of golden.vectors) {
   test(`metadata golden: ${vector.name}`, () => {
     const parsed = parseImageMetadataText(vector.text);
