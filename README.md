@@ -74,6 +74,12 @@ suggest an incorrect one; check the surrounding photos before accepting. The
 separate experimental GPS proposal view is for calibration and does not change
 folder membership.
 
+Suggestions also cover sustained camera pans between vertical runs, including
+new sections viewed from almost the same position. Large pans can start another
+section while the drone continues upwards or downwards. Camera turns without
+comparable views remain explicitly inconclusive in the image check. Gaps over
+60 seconds still need manual review.
+
 See the [browser workspace guide](web-app/README.md) for correction controls,
 visual-pass patterns, telemetry interpretation, and current limitations.
 

@@ -132,3 +132,37 @@ test('an invalid review import does not stop saving subsequent corrections', asy
   await page.getByLabel('Folder prefix', { exact: true }).fill('after_invalid_import');
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('flare-pfi-review-v1'))?.settings.folderPrefix)).toBe('after_invalid_import');
 });
+
+test('a sustained camera pan can be reviewed, accepted, undone and exported with all inspection photos', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  const inputs = [12, 9, 6, 3, 3, 6, 9, 12].map((altitude, i) => ({
+    name: `pan-${i}.png`, mimeType: 'image/png',
+    buffer: Buffer.concat([png, Buffer.from(`\n<x drone-dji:GimbalPitchDegree="0" drone-dji:RelativeAltitude="${altitude}" drone-dji:GimbalYawDegree="${i < 4 ? 0 : 30}" drone-dji:GPSLatitude="0" drone-dji:GPSLongitude="0" DateTimeOriginal="2026-09-28T08:00:${String(i * 5).padStart(2, '0')}Z" />`)]),
+  }));
+  await page.goto('/');
+  await page.getByLabel('Choose image files', { exact: true }).setInputFiles(inputs);
+  await page.getByRole('button', { name: 'Analyze images', exact: true }).click();
+  await expect(page.getByText('1 folders · 8 photos in ZIP', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Find pass boundaries', exact: true }).click();
+  const panel = page.getByRole('region', { name: 'Visual pass suggestions', exact: true });
+  await expect(panel.getByText('Start next folder at pan-4.png', { exact: true })).toBeVisible();
+  await expect(panel.getByText('Camera turns to a new section.', { exact: true })).toBeVisible();
+  await expect(panel.getByText(/Visual check inconclusive/)).toBeVisible();
+  await expect(page.getByText('1 folders · 8 photos in ZIP', { exact: true })).toBeVisible();
+  await panel.getByRole('button', { name: 'Accept boundary · keep photo', exact: true }).click();
+  await expect(page.getByText('2 folders · 8 photos in ZIP', { exact: true })).toBeVisible();
+  await panel.getByRole('button', { name: 'Undo accepted boundary', exact: true }).click();
+  await expect(page.getByText('1 folders · 8 photos in ZIP', { exact: true })).toBeVisible();
+  await panel.getByRole('button', { name: 'Accept boundary · keep photo', exact: true }).click();
+  await page.getByLabel('Skip pitched-down marker photos in output').check();
+  const zip = await JSZip.loadAsync(await download(page, page.getByRole('button', { name: 'Download ZIP', exact: true })));
+  const entries = Object.values(zip.files).filter((entry) => !entry.dir);
+  expect(entries).toHaveLength(8);
+  for (let i = 0; i < inputs.length; i += 1) {
+    const entry = zip.file(`flare_inspection_${i < 4 ? '001' : '002'}/pan-${i}.png`);
+    expect(entry).not.toBeNull();
+    expect(await entry.async('nodebuffer')).toEqual(inputs[i].buffer);
+  }
+  expect(errors).toEqual([]);
+});

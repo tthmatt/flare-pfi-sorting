@@ -1,6 +1,6 @@
 # Drone Image Sorter Web App
 
-**Current version:** 0.6.0
+**Current version:** 0.6.1
 
 The browser application for PFI drone inspection image sorting, deployable on Vercel or any static hosting provider.
 
@@ -148,7 +148,7 @@ other corrections, they survive re-analysis of the same selection and can be
 restored through a saved review after reselecting the originals. Undo in the
 current suggestion session restores any prior decision on that photo.
 
-The detector first checks consecutive capture-time records for predominantly
+The sideways-movement rules check consecutive capture-time records for predominantly
 sideways displacement relative to **gimbal yaw**, compatible relative/absolute
 altitude, stable camera heading, and vertical-pass or reversed camera-sweep evidence
 around the move.
@@ -214,6 +214,24 @@ sideways projection. This keeps stationary turns, forward approaches, unstable
 GPS and unrelated altitude changes from qualifying. The UI reports the heading
 change. A metadata suggestion still needs operator acceptance, and incompatible
 views remain an inconclusive image check rather than a claimed match.
+
+**Camera turns to a new section** covers sustained pans with little sideways
+flight, short setup sequences, and wider turns. The adjacent heading change must
+be 15–90°, persist in the median headings of nearby vertical runs, and change
+height by no more than 3 m. Each side uses the nearest complete run within six
+photos: at least three photos, 3 m vertical span and two steps of at least 1 m,
+without a significant reversal. Positions stay within 3 m of their respective
+anchors, headings within 12°, and isolated GPS excursions are rejected.
+Opposing runs need at least 3 m of overlapping height coverage. Continuing in
+the same direction instead requires a turn of at least 30°, no more than 3 m of
+horizontal movement, and at least 0.75 m of continued height progress. Larger
+forward approaches in both camera frames do not qualify.
+
+The pan rule respects markers, manual decisions, altitude sources and strictly
+increasing capture times with gaps no greater than 60 seconds. It does not use
+folder labels or filenames as detection evidence. Its image check is explicitly
+inconclusive because this path does not establish an aligned comparison pair.
+The operator must review and accept the proposed first photo.
 
 Candidate JPG/PNG pairs are decoded sequentially in a Web Worker into thumbnails
 no larger than 480 pixels. Distinct normalised patches in the lower image region
@@ -331,6 +349,13 @@ Import this GitHub repository into Vercel and use these settings:
 
 
 ## Changelog
+
+### 0.6.1 - 2026-09-28
+
+- Suggest new inspection sections after sustained camera heading changes, including pans with little sideways flight, short setup sequences and continued ascents after large turns.
+- Require vertical runs on both sides, consistent telemetry and persistent headings; keep camera turns without comparable images explicitly inconclusive.
+- Add the operator-labeled Elevation 1 calibration set: 129 photos in 17 passes. Exact boundary suggestions improve from 5/16 to 15/16, with no extra suggestions on this set. The 84-second gap before `DJI_0970.JPG` remains a manual boundary.
+- Verify retained photo membership, manual corrections and the browser accept/undo/export flow. This tuning set does not establish accuracy on other flights.
 
 ### 0.6.0 - 2026-09-28
 

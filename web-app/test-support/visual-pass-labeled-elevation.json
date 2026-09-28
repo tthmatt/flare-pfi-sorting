@@ -1,0 +1,1295 @@
+{
+  "description": "Operator-labeled Elevation 1: each supplied folder is one pass. Local calibration set, not held-out evaluation. Positions translated to arbitrary origin; times relative. Folder labels are evaluation-only, never detector inputs.",
+  "rows": [
+    {
+      "id": "0860",
+      "pass": 1,
+      "seconds": 0,
+      "north": 0,
+      "east": 0,
+      "altitude": 11.8,
+      "pitch": 0,
+      "gimbalYaw": -145.7
+    },
+    {
+      "id": "0861",
+      "pass": 1,
+      "seconds": 5,
+      "north": -0.101,
+      "east": -0.026,
+      "altitude": 9,
+      "pitch": 0,
+      "gimbalYaw": -145.7
+    },
+    {
+      "id": "0862",
+      "pass": 1,
+      "seconds": 11,
+      "north": 0.124,
+      "east": 0.183,
+      "altitude": 6.4,
+      "pitch": 0,
+      "gimbalYaw": -145.7
+    },
+    {
+      "id": "0863",
+      "pass": 1,
+      "seconds": 15,
+      "north": 0.158,
+      "east": 0.209,
+      "altitude": 4.3,
+      "pitch": 0,
+      "gimbalYaw": -145.7
+    },
+    {
+      "id": "0864",
+      "pass": 1,
+      "seconds": 19,
+      "north": 0.045,
+      "east": 0.039,
+      "altitude": 4.2,
+      "pitch": -22.4,
+      "gimbalYaw": -146.3
+    },
+    {
+      "id": "0865",
+      "pass": 2,
+      "seconds": 52,
+      "north": 5.266,
+      "east": -9.386,
+      "altitude": 2,
+      "pitch": 0,
+      "gimbalYaw": 175.3
+    },
+    {
+      "id": "0866",
+      "pass": 2,
+      "seconds": 57,
+      "north": 5.225,
+      "east": -9.453,
+      "altitude": 4.6,
+      "pitch": 0,
+      "gimbalYaw": 175.3
+    },
+    {
+      "id": "0867",
+      "pass": 2,
+      "seconds": 62,
+      "north": 5.134,
+      "east": -9.621,
+      "altitude": 6.9,
+      "pitch": 0,
+      "gimbalYaw": 175.3
+    },
+    {
+      "id": "0868",
+      "pass": 2,
+      "seconds": 70,
+      "north": 5.469,
+      "east": -9.524,
+      "altitude": 9.3,
+      "pitch": 0,
+      "gimbalYaw": 175.3
+    },
+    {
+      "id": "0869",
+      "pass": 2,
+      "seconds": 74,
+      "north": 5.454,
+      "east": -9.586,
+      "altitude": 11.5,
+      "pitch": 0,
+      "gimbalYaw": 175.3
+    },
+    {
+      "id": "0870",
+      "pass": 3,
+      "seconds": 86,
+      "north": 6.822,
+      "east": -11.569,
+      "altitude": 11.3,
+      "pitch": 0,
+      "gimbalYaw": -167.2
+    },
+    {
+      "id": "0871",
+      "pass": 3,
+      "seconds": 90,
+      "north": 7.136,
+      "east": -11.529,
+      "altitude": 9.6,
+      "pitch": 0,
+      "gimbalYaw": -167.2
+    },
+    {
+      "id": "0872",
+      "pass": 3,
+      "seconds": 95,
+      "north": 6.998,
+      "east": -11.478,
+      "altitude": 6.6,
+      "pitch": 0,
+      "gimbalYaw": -167.2
+    },
+    {
+      "id": "0873",
+      "pass": 3,
+      "seconds": 100,
+      "north": 6.599,
+      "east": -11.628,
+      "altitude": 4.2,
+      "pitch": 0,
+      "gimbalYaw": -167.2
+    },
+    {
+      "id": "0874",
+      "pass": 3,
+      "seconds": 105,
+      "north": 6.545,
+      "east": -11.639,
+      "altitude": 2.1,
+      "pitch": 0,
+      "gimbalYaw": -167.2
+    },
+    {
+      "id": "0875",
+      "pass": 4,
+      "seconds": 115,
+      "north": 8.449,
+      "east": -15.028,
+      "altitude": 2.3,
+      "pitch": 0,
+      "gimbalYaw": -166.3
+    },
+    {
+      "id": "0876",
+      "pass": 4,
+      "seconds": 121,
+      "north": 8.723,
+      "east": -14.816,
+      "altitude": 4.5,
+      "pitch": 0,
+      "gimbalYaw": -166.3
+    },
+    {
+      "id": "0877",
+      "pass": 4,
+      "seconds": 125,
+      "north": 8.56,
+      "east": -14.846,
+      "altitude": 7.6,
+      "pitch": 0,
+      "gimbalYaw": -166.3
+    },
+    {
+      "id": "0878",
+      "pass": 4,
+      "seconds": 128,
+      "north": 7.971,
+      "east": -15.104,
+      "altitude": 9.8,
+      "pitch": 0,
+      "gimbalYaw": -166.3
+    },
+    {
+      "id": "0879",
+      "pass": 4,
+      "seconds": 131,
+      "north": 7.715,
+      "east": -15.227,
+      "altitude": 11.7,
+      "pitch": 0,
+      "gimbalYaw": -166.3
+    },
+    {
+      "id": "0880",
+      "pass": 5,
+      "seconds": 139,
+      "north": 7.616,
+      "east": -15.141,
+      "altitude": 11.7,
+      "pitch": 0,
+      "gimbalYaw": -138.7
+    },
+    {
+      "id": "0881",
+      "pass": 5,
+      "seconds": 143,
+      "north": 7.835,
+      "east": -14.853,
+      "altitude": 8.9,
+      "pitch": 0,
+      "gimbalYaw": -138.7
+    },
+    {
+      "id": "0882",
+      "pass": 5,
+      "seconds": 147,
+      "north": 7.793,
+      "east": -14.937,
+      "altitude": 6.5,
+      "pitch": 0,
+      "gimbalYaw": -138.7
+    },
+    {
+      "id": "0883",
+      "pass": 5,
+      "seconds": 151,
+      "north": 7.722,
+      "east": -14.935,
+      "altitude": 4.4,
+      "pitch": 0,
+      "gimbalYaw": -138.9
+    },
+    {
+      "id": "0884",
+      "pass": 5,
+      "seconds": 154,
+      "north": 7.807,
+      "east": -15.051,
+      "altitude": 2.8,
+      "pitch": 0,
+      "gimbalYaw": -138.9
+    },
+    {
+      "id": "0886",
+      "pass": 6,
+      "seconds": 170,
+      "north": 10.827,
+      "east": -21.635,
+      "altitude": 1.9,
+      "pitch": 0,
+      "gimbalYaw": -166.4
+    },
+    {
+      "id": "0887",
+      "pass": 6,
+      "seconds": 174,
+      "north": 10.758,
+      "east": -21.533,
+      "altitude": 4,
+      "pitch": 0,
+      "gimbalYaw": -168.2
+    },
+    {
+      "id": "0888",
+      "pass": 6,
+      "seconds": 182,
+      "north": 10.145,
+      "east": -21.992,
+      "altitude": 6.4,
+      "pitch": 0,
+      "gimbalYaw": -168.2
+    },
+    {
+      "id": "0889",
+      "pass": 6,
+      "seconds": 186,
+      "north": 10.572,
+      "east": -21.972,
+      "altitude": 9.2,
+      "pitch": 0,
+      "gimbalYaw": -168.2
+    },
+    {
+      "id": "0890",
+      "pass": 6,
+      "seconds": 190,
+      "north": 11.282,
+      "east": -21.926,
+      "altitude": 11.5,
+      "pitch": 0,
+      "gimbalYaw": -168.2
+    },
+    {
+      "id": "0891",
+      "pass": 7,
+      "seconds": 197,
+      "north": 10.961,
+      "east": -22.303,
+      "altitude": 13.6,
+      "pitch": 0,
+      "gimbalYaw": -133
+    },
+    {
+      "id": "0892",
+      "pass": 7,
+      "seconds": 202,
+      "north": 10.92,
+      "east": -22.505,
+      "altitude": 17,
+      "pitch": 0,
+      "gimbalYaw": -131.9
+    },
+    {
+      "id": "0893",
+      "pass": 7,
+      "seconds": 208,
+      "north": 11.08,
+      "east": -22.848,
+      "altitude": 20.9,
+      "pitch": 0,
+      "gimbalYaw": -131.9
+    },
+    {
+      "id": "0894",
+      "pass": 7,
+      "seconds": 212,
+      "north": 11.421,
+      "east": -22.807,
+      "altitude": 23.8,
+      "pitch": 0,
+      "gimbalYaw": -131.2
+    },
+    {
+      "id": "0895",
+      "pass": 7,
+      "seconds": 216,
+      "north": 11.542,
+      "east": -22.694,
+      "altitude": 25.3,
+      "pitch": 0,
+      "gimbalYaw": -142.1
+    },
+    {
+      "id": "0896",
+      "pass": 7,
+      "seconds": 221,
+      "north": 11.784,
+      "east": -22.608,
+      "altitude": 27.4,
+      "pitch": 0,
+      "gimbalYaw": -142.1
+    },
+    {
+      "id": "0897",
+      "pass": 7,
+      "seconds": 224,
+      "north": 11.499,
+      "east": -22.76,
+      "altitude": 29.4,
+      "pitch": 0,
+      "gimbalYaw": -142.1
+    },
+    {
+      "id": "0899",
+      "pass": 8,
+      "seconds": 228,
+      "north": 11.377,
+      "east": -22.956,
+      "altitude": 29.3,
+      "pitch": 0,
+      "gimbalYaw": -121.9
+    },
+    {
+      "id": "0900",
+      "pass": 8,
+      "seconds": 241,
+      "north": 13.299,
+      "east": -23.843,
+      "altitude": 28.1,
+      "pitch": 0,
+      "gimbalYaw": -125.7
+    },
+    {
+      "id": "0901",
+      "pass": 8,
+      "seconds": 245,
+      "north": 13.198,
+      "east": -23.926,
+      "altitude": 26.1,
+      "pitch": 0,
+      "gimbalYaw": -125.7
+    },
+    {
+      "id": "0902",
+      "pass": 8,
+      "seconds": 249,
+      "north": 13.168,
+      "east": -23.891,
+      "altitude": 23.6,
+      "pitch": 0,
+      "gimbalYaw": -125.7
+    },
+    {
+      "id": "0903",
+      "pass": 8,
+      "seconds": 254,
+      "north": 13.077,
+      "east": -23.817,
+      "altitude": 19.9,
+      "pitch": 0,
+      "gimbalYaw": -125.7
+    },
+    {
+      "id": "0904",
+      "pass": 8,
+      "seconds": 259,
+      "north": 13.072,
+      "east": -23.946,
+      "altitude": 17,
+      "pitch": 0,
+      "gimbalYaw": -125.7
+    },
+    {
+      "id": "0905",
+      "pass": 8,
+      "seconds": 266,
+      "north": 13.085,
+      "east": -23.764,
+      "altitude": 11.8,
+      "pitch": 0,
+      "gimbalYaw": -125.7
+    },
+    {
+      "id": "0906",
+      "pass": 8,
+      "seconds": 275,
+      "north": 11.771,
+      "east": -22.882,
+      "altitude": 10.3,
+      "pitch": 0,
+      "gimbalYaw": -131.6
+    },
+    {
+      "id": "0907",
+      "pass": 8,
+      "seconds": 279,
+      "north": 11.798,
+      "east": -22.982,
+      "altitude": 7.5,
+      "pitch": 0,
+      "gimbalYaw": -131.6
+    },
+    {
+      "id": "0908",
+      "pass": 8,
+      "seconds": 282,
+      "north": 11.692,
+      "east": -22.936,
+      "altitude": 5,
+      "pitch": 0,
+      "gimbalYaw": -131.6
+    },
+    {
+      "id": "0909",
+      "pass": 8,
+      "seconds": 285,
+      "north": 11.671,
+      "east": -22.947,
+      "altitude": 3.8,
+      "pitch": 0,
+      "gimbalYaw": -131.6
+    },
+    {
+      "id": "0910",
+      "pass": 8,
+      "seconds": 291,
+      "north": 11.97,
+      "east": -22.193,
+      "altitude": 2.2,
+      "pitch": 0,
+      "gimbalYaw": -128.9
+    },
+    {
+      "id": "0911",
+      "pass": 8,
+      "seconds": 294,
+      "north": 11.933,
+      "east": -22.333,
+      "altitude": 2.3,
+      "pitch": -23.1,
+      "gimbalYaw": -128.9
+    },
+    {
+      "id": "0913",
+      "pass": 9,
+      "seconds": 318,
+      "north": 16.211,
+      "east": -29.316,
+      "altitude": 2.8,
+      "pitch": -1.6,
+      "gimbalYaw": -159.5
+    },
+    {
+      "id": "0914",
+      "pass": 9,
+      "seconds": 330,
+      "north": 15.54,
+      "east": -29.353,
+      "altitude": 4.9,
+      "pitch": 0.1,
+      "gimbalYaw": -159.5
+    },
+    {
+      "id": "0915",
+      "pass": 9,
+      "seconds": 334,
+      "north": 15.703,
+      "east": -29.369,
+      "altitude": 7.2,
+      "pitch": 0.1,
+      "gimbalYaw": -163.2
+    },
+    {
+      "id": "0916",
+      "pass": 9,
+      "seconds": 338,
+      "north": 15.576,
+      "east": -29.398,
+      "altitude": 9.5,
+      "pitch": 0.1,
+      "gimbalYaw": -163.2
+    },
+    {
+      "id": "0917",
+      "pass": 9,
+      "seconds": 340,
+      "north": 15.624,
+      "east": -29.322,
+      "altitude": 11.2,
+      "pitch": 0.1,
+      "gimbalYaw": -163.2
+    },
+    {
+      "id": "0918",
+      "pass": 9,
+      "seconds": 343,
+      "north": 15.548,
+      "east": -29.197,
+      "altitude": 12.7,
+      "pitch": 0.1,
+      "gimbalYaw": -163.2
+    },
+    {
+      "id": "0919",
+      "pass": 9,
+      "seconds": 348,
+      "north": 15.357,
+      "east": -29.434,
+      "altitude": 15.2,
+      "pitch": 0.1,
+      "gimbalYaw": -163.2
+    },
+    {
+      "id": "0920",
+      "pass": 9,
+      "seconds": 351,
+      "north": 15.287,
+      "east": -29.504,
+      "altitude": 17.8,
+      "pitch": 0.1,
+      "gimbalYaw": -163.2
+    },
+    {
+      "id": "0921",
+      "pass": 9,
+      "seconds": 358,
+      "north": 15.627,
+      "east": -29.432,
+      "altitude": 22.4,
+      "pitch": 0.1,
+      "gimbalYaw": -163.2
+    },
+    {
+      "id": "0922",
+      "pass": 9,
+      "seconds": 361,
+      "north": 15.837,
+      "east": -29.338,
+      "altitude": 23.9,
+      "pitch": 0.1,
+      "gimbalYaw": -163.2
+    },
+    {
+      "id": "0923",
+      "pass": 9,
+      "seconds": 367,
+      "north": 17.653,
+      "east": -28.737,
+      "altitude": 24.8,
+      "pitch": 0.1,
+      "gimbalYaw": -169.3
+    },
+    {
+      "id": "0924",
+      "pass": 9,
+      "seconds": 370,
+      "north": 17.499,
+      "east": -28.813,
+      "altitude": 25.9,
+      "pitch": 0.1,
+      "gimbalYaw": -169.3
+    },
+    {
+      "id": "0925",
+      "pass": 9,
+      "seconds": 373,
+      "north": 18.355,
+      "east": -28.534,
+      "altitude": 27.6,
+      "pitch": 0.1,
+      "gimbalYaw": -169.3
+    },
+    {
+      "id": "0926",
+      "pass": 9,
+      "seconds": 376,
+      "north": 18.493,
+      "east": -28.478,
+      "altitude": 29.1,
+      "pitch": 0.1,
+      "gimbalYaw": -169.3
+    },
+    {
+      "id": "0927",
+      "pass": 10,
+      "seconds": 383,
+      "north": 19.641,
+      "east": -32.593,
+      "altitude": 28.8,
+      "pitch": 0.1,
+      "gimbalYaw": -172.2
+    },
+    {
+      "id": "0928",
+      "pass": 10,
+      "seconds": 390,
+      "north": 19.221,
+      "east": -32.496,
+      "altitude": 25,
+      "pitch": 0.1,
+      "gimbalYaw": -172.2
+    },
+    {
+      "id": "0929",
+      "pass": 10,
+      "seconds": 395,
+      "north": 19.035,
+      "east": -32.577,
+      "altitude": 22.7,
+      "pitch": 0.1,
+      "gimbalYaw": -176.4
+    },
+    {
+      "id": "0930",
+      "pass": 10,
+      "seconds": 401,
+      "north": 18.876,
+      "east": -32.53,
+      "altitude": 17.7,
+      "pitch": 0.1,
+      "gimbalYaw": -176.4
+    },
+    {
+      "id": "0931",
+      "pass": 10,
+      "seconds": 408,
+      "north": 18.644,
+      "east": -32.643,
+      "altitude": 12.1,
+      "pitch": 0.1,
+      "gimbalYaw": -171.4
+    },
+    {
+      "id": "0932",
+      "pass": 10,
+      "seconds": 415,
+      "north": 17.174,
+      "east": -34.012,
+      "altitude": 9,
+      "pitch": 0.1,
+      "gimbalYaw": -168
+    },
+    {
+      "id": "0933",
+      "pass": 10,
+      "seconds": 420,
+      "north": 17.091,
+      "east": -34.021,
+      "altitude": 6.8,
+      "pitch": 0.1,
+      "gimbalYaw": -168
+    },
+    {
+      "id": "0934",
+      "pass": 10,
+      "seconds": 428,
+      "north": 18.999,
+      "east": -33.826,
+      "altitude": 4,
+      "pitch": -9.2,
+      "gimbalYaw": -168
+    },
+    {
+      "id": "0935",
+      "pass": 11,
+      "seconds": 435,
+      "north": 19.143,
+      "east": -34.237,
+      "altitude": 4.1,
+      "pitch": -9.2,
+      "gimbalYaw": -153
+    },
+    {
+      "id": "0936",
+      "pass": 11,
+      "seconds": 437,
+      "north": 19.203,
+      "east": -34.169,
+      "altitude": 4.1,
+      "pitch": -21.4,
+      "gimbalYaw": -153
+    },
+    {
+      "id": "0937",
+      "pass": 11,
+      "seconds": 440,
+      "north": 19.239,
+      "east": -34.018,
+      "altitude": 4.1,
+      "pitch": 2.3,
+      "gimbalYaw": -153
+    },
+    {
+      "id": "0938",
+      "pass": 11,
+      "seconds": 449,
+      "north": 18.527,
+      "east": -33.724,
+      "altitude": 5.1,
+      "pitch": 2.3,
+      "gimbalYaw": -141.4
+    },
+    {
+      "id": "0940",
+      "pass": 11,
+      "seconds": 454,
+      "north": 18.51,
+      "east": -33.633,
+      "altitude": 7.1,
+      "pitch": -1,
+      "gimbalYaw": -141.4
+    },
+    {
+      "id": "0941",
+      "pass": 11,
+      "seconds": 457,
+      "north": 18.586,
+      "east": -33.541,
+      "altitude": 8.8,
+      "pitch": -1,
+      "gimbalYaw": -140.4
+    },
+    {
+      "id": "0942",
+      "pass": 11,
+      "seconds": 459,
+      "north": 18.495,
+      "east": -33.665,
+      "altitude": 10.3,
+      "pitch": -1,
+      "gimbalYaw": -140.4
+    },
+    {
+      "id": "0943",
+      "pass": 11,
+      "seconds": 464,
+      "north": 18.582,
+      "east": -33.56,
+      "altitude": 11,
+      "pitch": -1,
+      "gimbalYaw": -139.2
+    },
+    {
+      "id": "0944",
+      "pass": 11,
+      "seconds": 466,
+      "north": 18.523,
+      "east": -33.647,
+      "altitude": 11.9,
+      "pitch": -1,
+      "gimbalYaw": -139.2
+    },
+    {
+      "id": "0945",
+      "pass": 12,
+      "seconds": 494,
+      "north": 23.45,
+      "east": -36.237,
+      "altitude": 12.5,
+      "pitch": -1,
+      "gimbalYaw": -163.6
+    },
+    {
+      "id": "0946",
+      "pass": 12,
+      "seconds": 503,
+      "north": 23.621,
+      "east": -36.948,
+      "altitude": 9.8,
+      "pitch": -1,
+      "gimbalYaw": -163.6
+    },
+    {
+      "id": "0947",
+      "pass": 12,
+      "seconds": 507,
+      "north": 23.438,
+      "east": -36.802,
+      "altitude": 7.7,
+      "pitch": -1,
+      "gimbalYaw": -163.6
+    },
+    {
+      "id": "0948",
+      "pass": 12,
+      "seconds": 517,
+      "north": 23.327,
+      "east": -36.936,
+      "altitude": 5.5,
+      "pitch": -0.6,
+      "gimbalYaw": -163.6
+    },
+    {
+      "id": "0949",
+      "pass": 12,
+      "seconds": 522,
+      "north": 23.328,
+      "east": -36.955,
+      "altitude": 5.5,
+      "pitch": 29.6,
+      "gimbalYaw": -163.6
+    },
+    {
+      "id": "0950",
+      "pass": 12,
+      "seconds": 535,
+      "north": 23.022,
+      "east": -36.558,
+      "altitude": 3,
+      "pitch": -0.3,
+      "gimbalYaw": -163.6
+    },
+    {
+      "id": "0951",
+      "pass": 12,
+      "seconds": 537,
+      "north": 22.914,
+      "east": -36.765,
+      "altitude": 3,
+      "pitch": -16.5,
+      "gimbalYaw": -163.6
+    },
+    {
+      "id": "0952",
+      "pass": 13,
+      "seconds": 564,
+      "north": 24.656,
+      "east": -41.93,
+      "altitude": 3.1,
+      "pitch": -7.6,
+      "gimbalYaw": -163.6
+    },
+    {
+      "id": "0953",
+      "pass": 13,
+      "seconds": 570,
+      "north": 24.454,
+      "east": -42.011,
+      "altitude": 3.2,
+      "pitch": -1.1,
+      "gimbalYaw": -163.6
+    },
+    {
+      "id": "0954",
+      "pass": 13,
+      "seconds": 574,
+      "north": 24.359,
+      "east": -42.087,
+      "altitude": 5.3,
+      "pitch": -1.1,
+      "gimbalYaw": -163.6
+    },
+    {
+      "id": "0955",
+      "pass": 13,
+      "seconds": 582,
+      "north": 24.028,
+      "east": -41.738,
+      "altitude": 8.3,
+      "pitch": -1.1,
+      "gimbalYaw": -163.6
+    },
+    {
+      "id": "0956",
+      "pass": 13,
+      "seconds": 586,
+      "north": 24.094,
+      "east": -41.818,
+      "altitude": 8.3,
+      "pitch": 19.5,
+      "gimbalYaw": -163.6
+    },
+    {
+      "id": "0958",
+      "pass": 13,
+      "seconds": 595,
+      "north": 24.769,
+      "east": -41.6,
+      "altitude": 10.4,
+      "pitch": -0.2,
+      "gimbalYaw": -163.6
+    },
+    {
+      "id": "0959",
+      "pass": 13,
+      "seconds": 598,
+      "north": 24.905,
+      "east": -41.542,
+      "altitude": 12.1,
+      "pitch": -0.2,
+      "gimbalYaw": -163.6
+    },
+    {
+      "id": "0960",
+      "pass": 14,
+      "seconds": 607,
+      "north": 24.355,
+      "east": -41.346,
+      "altitude": 12.1,
+      "pitch": -0.2,
+      "gimbalYaw": -130.7
+    },
+    {
+      "id": "0961",
+      "pass": 14,
+      "seconds": 610,
+      "north": 24.293,
+      "east": -41.34,
+      "altitude": 10.4,
+      "pitch": -0.2,
+      "gimbalYaw": -130.7
+    },
+    {
+      "id": "0962",
+      "pass": 14,
+      "seconds": 619,
+      "north": 23.088,
+      "east": -41.157,
+      "altitude": 10.5,
+      "pitch": -0.2,
+      "gimbalYaw": -128.4
+    },
+    {
+      "id": "0963",
+      "pass": 14,
+      "seconds": 624,
+      "north": 23.175,
+      "east": -41.204,
+      "altitude": 9.1,
+      "pitch": 0.1,
+      "gimbalYaw": -128.4
+    },
+    {
+      "id": "0964",
+      "pass": 14,
+      "seconds": 627,
+      "north": 23.144,
+      "east": -41.197,
+      "altitude": 7.2,
+      "pitch": 0.1,
+      "gimbalYaw": -128.4
+    },
+    {
+      "id": "0965",
+      "pass": 14,
+      "seconds": 630,
+      "north": 23.23,
+      "east": -41.268,
+      "altitude": 5.4,
+      "pitch": 0.1,
+      "gimbalYaw": -128.4
+    },
+    {
+      "id": "0966",
+      "pass": 14,
+      "seconds": 634,
+      "north": 23.113,
+      "east": -41.141,
+      "altitude": 5.4,
+      "pitch": 32,
+      "gimbalYaw": -128.4
+    },
+    {
+      "id": "0967",
+      "pass": 14,
+      "seconds": 643,
+      "north": 23.079,
+      "east": -41.184,
+      "altitude": 3.8,
+      "pitch": -0.3,
+      "gimbalYaw": -128.4
+    },
+    {
+      "id": "0968",
+      "pass": 14,
+      "seconds": 649,
+      "north": 23.052,
+      "east": -41.146,
+      "altitude": 3.8,
+      "pitch": -17.9,
+      "gimbalYaw": -128.4
+    },
+    {
+      "id": "0970",
+      "pass": 15,
+      "seconds": 733,
+      "north": 23.697,
+      "east": -51.476,
+      "altitude": 2,
+      "pitch": -2.3,
+      "gimbalYaw": -162.9
+    },
+    {
+      "id": "0971",
+      "pass": 15,
+      "seconds": 744,
+      "north": 23.706,
+      "east": -52.52,
+      "altitude": 3.9,
+      "pitch": -0.1,
+      "gimbalYaw": -162.9
+    },
+    {
+      "id": "0972",
+      "pass": 15,
+      "seconds": 748,
+      "north": 23.701,
+      "east": -52.488,
+      "altitude": 4.4,
+      "pitch": -0.1,
+      "gimbalYaw": -162.9
+    },
+    {
+      "id": "0973",
+      "pass": 15,
+      "seconds": 751,
+      "north": 23.704,
+      "east": -52.494,
+      "altitude": 4.4,
+      "pitch": 19.3,
+      "gimbalYaw": -162.9
+    },
+    {
+      "id": "0974",
+      "pass": 15,
+      "seconds": 765,
+      "north": 22.897,
+      "east": -52.912,
+      "altitude": 5.8,
+      "pitch": 0.3,
+      "gimbalYaw": -162.9
+    },
+    {
+      "id": "0975",
+      "pass": 15,
+      "seconds": 768,
+      "north": 22.897,
+      "east": -52.91,
+      "altitude": 7,
+      "pitch": 0.3,
+      "gimbalYaw": -162.9
+    },
+    {
+      "id": "0976",
+      "pass": 15,
+      "seconds": 772,
+      "north": 22.896,
+      "east": -52.915,
+      "altitude": 7,
+      "pitch": 18.4,
+      "gimbalYaw": -162.9
+    },
+    {
+      "id": "0977",
+      "pass": 15,
+      "seconds": 779,
+      "north": 23.131,
+      "east": -53.438,
+      "altitude": 7.6,
+      "pitch": 35,
+      "gimbalYaw": -162.9
+    },
+    {
+      "id": "0978",
+      "pass": 15,
+      "seconds": 806,
+      "north": 23.438,
+      "east": -53.539,
+      "altitude": 9.5,
+      "pitch": 33.9,
+      "gimbalYaw": -161.9
+    },
+    {
+      "id": "0979",
+      "pass": 16,
+      "seconds": 812,
+      "north": 26.66,
+      "east": -52.178,
+      "altitude": 9.4,
+      "pitch": 19,
+      "gimbalYaw": -113.4
+    },
+    {
+      "id": "0981",
+      "pass": 16,
+      "seconds": 819,
+      "north": 26.817,
+      "east": -52.075,
+      "altitude": 9,
+      "pitch": 1.6,
+      "gimbalYaw": -119.2
+    },
+    {
+      "id": "0982",
+      "pass": 16,
+      "seconds": 823,
+      "north": 27.006,
+      "east": -52.034,
+      "altitude": 7.1,
+      "pitch": 1.6,
+      "gimbalYaw": -119.2
+    },
+    {
+      "id": "0983",
+      "pass": 16,
+      "seconds": 827,
+      "north": 27.339,
+      "east": -51.715,
+      "altitude": 5.4,
+      "pitch": 1.6,
+      "gimbalYaw": -119.2
+    },
+    {
+      "id": "0984",
+      "pass": 16,
+      "seconds": 830,
+      "north": 27.298,
+      "east": -51.734,
+      "altitude": 4,
+      "pitch": 1.6,
+      "gimbalYaw": -119.2
+    },
+    {
+      "id": "0985",
+      "pass": 16,
+      "seconds": 832,
+      "north": 27.373,
+      "east": -51.649,
+      "altitude": 3.1,
+      "pitch": 1.6,
+      "gimbalYaw": -119.2
+    },
+    {
+      "id": "0986",
+      "pass": 16,
+      "seconds": 835,
+      "north": 27.21,
+      "east": -51.571,
+      "altitude": 2,
+      "pitch": -10.5,
+      "gimbalYaw": -119.2
+    },
+    {
+      "id": "0987",
+      "pass": 17,
+      "seconds": 867,
+      "north": 31.142,
+      "east": -59.846,
+      "altitude": 2.3,
+      "pitch": -7.3,
+      "gimbalYaw": 168.5
+    },
+    {
+      "id": "0988",
+      "pass": 17,
+      "seconds": 879,
+      "north": 31.136,
+      "east": -59.845,
+      "altitude": 3.1,
+      "pitch": 3,
+      "gimbalYaw": 167.5
+    },
+    {
+      "id": "0989",
+      "pass": 17,
+      "seconds": 883,
+      "north": 31.155,
+      "east": -59.819,
+      "altitude": 4.2,
+      "pitch": 3,
+      "gimbalYaw": 159.4
+    },
+    {
+      "id": "0990",
+      "pass": 17,
+      "seconds": 894,
+      "north": 31.173,
+      "east": -59.782,
+      "altitude": 6.1,
+      "pitch": 3,
+      "gimbalYaw": 161.8
+    },
+    {
+      "id": "0991",
+      "pass": 17,
+      "seconds": 898,
+      "north": 31.195,
+      "east": -59.469,
+      "altitude": 7,
+      "pitch": 3,
+      "gimbalYaw": 166.5
+    },
+    {
+      "id": "0992",
+      "pass": 17,
+      "seconds": 903,
+      "north": 31.207,
+      "east": -59.428,
+      "altitude": 8.1,
+      "pitch": 3,
+      "gimbalYaw": 166.5
+    },
+    {
+      "id": "0993",
+      "pass": 17,
+      "seconds": 909,
+      "north": 31.217,
+      "east": -59.419,
+      "altitude": 8.6,
+      "pitch": 3,
+      "gimbalYaw": 163.3
+    },
+    {
+      "id": "0994",
+      "pass": 17,
+      "seconds": 914,
+      "north": 29.174,
+      "east": -59.997,
+      "altitude": 8.4,
+      "pitch": 35,
+      "gimbalYaw": 163.3
+    },
+    {
+      "id": "0995",
+      "pass": 17,
+      "seconds": 966,
+      "north": 27.884,
+      "east": -64.883,
+      "altitude": 13.7,
+      "pitch": 0.4,
+      "gimbalYaw": 134.1
+    }
+  ]
+}

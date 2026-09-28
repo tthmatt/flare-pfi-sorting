@@ -130,6 +130,76 @@ function changedViewpointEvidence(before, after) {
   return { priorSign, nextSign };
 }
 
+// A new inspection column can begin with a sustained pan, even without sideways
+// flight. Require complete vertical runs on both sides; a single yaw spike,
+// stationary pan without vertical coverage, or a gradual heading correction is
+// not sufficient. These are review suggestions, never automatic folder starts.
+function headingPassEvidence(records, index, settings) {
+  const previous = records[index - 1]; const next = records[index];
+  const turn = angleDifference(previous.gimbalYaw, next.gimbalYaw);
+  if (turn < 15 || turn > 90 || Math.abs(next.altitude - previous.altitude) > 3) return null;
+  const movement = cameraDisplacement(previous, next);
+  const nextFrame = cameraDisplacement({ ...previous, gimbalYaw: next.gimbalYaw }, next);
+  // A forward approach to the same surface is not enough. A retreat and pan
+  // may expose a new section, provided both vertical runs below are present.
+  if (Math.hypot(movement.lateral, movement.forward) > 3
+    && [movement, nextFrame].every((move) => move.forward > Math.abs(move.lateral))) return null;
+  const collect = (start, step) => {
+    const anchor = records[start]; const photos = [];
+    for (let j = start; j >= 0 && j < records.length && photos.length < 6; j += step) {
+      const item = records[j]; const neighbor = records[j - step];
+      if (!hasPosition(item) || !sameAltitudeSource(anchor, item) || !Number.isFinite(time(item))
+        || !Number.isFinite(item.pitch) || Math.abs(item.pitch) > 60
+        || !Number.isFinite(item.gimbalYaw) || angleDifference(anchor.gimbalYaw, item.gimbalYaw) > 12
+        || isMarkerImage(item, settings)) break;
+      if (photos.length && (step * gap(neighbor, item) <= 0 || step * gap(neighbor, item) > 60
+        || (step > 0 ? item : neighbor).markerOverride === 'split')) break;
+      const move = cameraDisplacement(anchor, item);
+      if (Math.hypot(move.lateral, move.forward) > 3) break;
+      photos.push(item);
+    }
+    return photos;
+  };
+  const verticalRun = (photos) => {
+    if (photos.length < 3) return null;
+    const span = photos.at(-1).altitude - photos[0].altitude;
+    const steps = photos.slice(1).map((item, i) => item.altitude - photos[i].altitude);
+    if (Math.abs(span) < 3 || steps.filter((delta) => Math.abs(delta) >= 1).length < 2
+      || steps.some((delta) => delta * Math.sign(span) < -0.75)) return null;
+    const distance = (a, b) => { const move = cameraDisplacement(a, b); return Math.hypot(move.lateral, move.forward); };
+    if (photos.slice(1, -1).some((item, i) => distance(photos[i], item) > 1
+      && distance(item, photos[i + 2]) > 1 && distance(photos[i], photos[i + 2]) < 0.75)) return null;
+    return Math.sign(span);
+  };
+  // Use the nearest complete run. More distant detail shots or small heading
+  // adjustments belong to the same pass but can hide its endpoint direction.
+  const nearestRun = (photos, reverse = false) => {
+    for (let length = 3; length <= photos.length; length += 1) {
+      const window = photos.slice(0, length);
+      if (reverse) window.reverse();
+      if (verticalRun(window)) return window;
+    }
+    return [];
+  };
+  const before = nearestRun(collect(index - 1, -1), true); const after = nearestRun(collect(index, 1));
+  const priorSign = verticalRun(before); const nextSign = verticalRun(after);
+  if (!priorSign || !nextSign) return null;
+  const medianYaw = (photos, anchor) => photos.map((item) => angleDelta(anchor, item.gimbalYaw))
+    .sort((a, b) => a - b)[Math.floor(photos.length / 2)] + anchor;
+  if (angleDifference(medianYaw(before, previous.gimbalYaw), medianYaw(after, next.gimbalYaw)) < 15) return null;
+  if (priorSign === nextSign) {
+    // Continuing upwards/downwards needs a decisive pan at nearly the same
+    // horizontal position and continued height progress, not a transit flight.
+    if (turn < 30 || Math.hypot(movement.lateral, movement.forward) > 3
+      || (next.altitude - previous.altitude) * priorSign < 0.75) return null;
+  } else {
+    const heightsBefore = before.map((item) => item.altitude); const heightsAfter = after.map((item) => item.altitude);
+    if (Math.min(Math.max(...heightsBefore), Math.max(...heightsAfter))
+      - Math.max(Math.min(...heightsBefore), Math.min(...heightsAfter)) < 3) return null;
+  }
+  return { priorSign, nextSign };
+}
+
 // All indices are capture-order indices. Labels and filenames are never evidence.
 export function findVisualPassCandidates(records, settings = {}) {
   const candidates = []; const reasons = {};
@@ -144,6 +214,15 @@ export function findVisualPassCandidates(records, settings = {}) {
       || !Number.isFinite(gap(previous, next))) { reject('missing-metadata'); continue; }
     if (gap(previous, next) <= 0 || gap(previous, next) > 60) { reject('capture-time-gap'); continue; }
     const headingChangeDegrees = angleDifference(previous.gimbalYaw, next.gimbalYaw);
+    const headingPass = headingPassEvidence(records, index, settings);
+    if (headingPass) {
+      candidates.push({ boundaryIndex: index, beforeIndex: index - 1, lateralMeters: movement.lateral,
+        forwardMeters: movement.forward, altitudeDelta: next.altitude - previous.altitude,
+        priorDirection: headingPass.priorSign > 0 ? 'up' : 'down', nextDirection: headingPass.nextSign > 0 ? 'up' : 'down',
+        passEvidence: 'heading-change', headingChangeDegrees, requiresVisualSupport: false,
+        comparisonBeforeIndex: null, comparisonAfterIndex: null });
+      continue;
+    }
     const changedViewpoint = headingChangeDegrees > 8 || Math.abs(next.altitude - previous.altitude) > 2;
     if (headingChangeDegrees > 45
       || Math.max(Math.abs(next.pitch), Math.abs(previous.pitch)) > 60) { reject('camera-rotation'); continue; }
