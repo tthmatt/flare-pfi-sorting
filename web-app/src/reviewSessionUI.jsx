@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { downloadBlob } from './reports.js';
 import { createReviewSession, MAX_REVIEW_BYTES, parseReviewSession, readSavedReview, serializeReviewSession, storeReviewSession } from './reviewSession.js';
+import { Icon } from './ui.jsx';
 
 export function useReviewSession({ files, analyses, settings, overrides, isWorking }) {
   const importVersion = useRef(0);
@@ -68,11 +69,16 @@ export function useReviewSession({ files, analyses, settings, overrides, isWorki
 export function ReviewSessionControls({ session, onResume, disabled, hasPhotos, hasAnalysis }) {
   const input = useRef(null);
   return <section className="panel review-session" aria-label="Save and resume review">
-    <div className="panel-heading"><h2>Save & resume review</h2><span className="badge">On this device</span></div>
-    <p role="status">{session.notice}</p>
-    {session.importError && <p role="alert">{session.importError}</p>}
-    {session.savedReview && <p className="section-description">Saved review: {session.savedReview.files.length.toLocaleString()} photos · {new Date(session.savedReview.savedAt).toLocaleString()}</p>}
-    <div className="button-row">
+    <div className="session-summary">
+      <Icon name="history" />
+      <div className="session-copy">
+        <div className="panel-heading"><h2>Save & resume review</h2><span className="badge">On this device</span></div>
+        <p role="status">{session.notice}</p>
+        {session.importError && <p role="alert">{session.importError}</p>}
+        {session.savedReview && <p className="section-description">Saved review: {session.savedReview.files.length.toLocaleString()} photos · {new Date(session.savedReview.savedAt).toLocaleString()}</p>}
+      </div>
+    </div>
+    <div className="button-row session-actions">
       <button type="button" className="secondary" disabled={disabled || !hasAnalysis} onClick={session.downloadReview}>Save review file</button>
       <button type="button" className="secondary" disabled={disabled} onClick={() => input.current?.click()}>Load review file</button>
       <button type="button" disabled={disabled || !hasPhotos || !session.savedReview} onClick={onResume}>Resume saved review</button>

@@ -383,11 +383,12 @@ export default function App() {
             onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setIsDragging(false); }}
             onDrop={(event) => { event.preventDefault(); setIsDragging(false); handleFileList(event.dataTransfer.files); }}>
             <div className="import-icon"><Icon name={imageFiles.length ? 'images' : 'upload'} /></div>
-            <div className="import-copy"><h2>{imageFiles.length ? `${imageFiles.length.toLocaleString()} photos selected` : 'Add your inspection photos'}</h2><p>{imageFiles.length ? `${formatBytes(totalSize)} · ${files.length - imageFiles.length} unsupported files ignored` : 'Drop image files here, or choose a folder to get started.'}</p><span className="file-types">JPG · PNG · TIFF · DNG</span></div>
+            <div className="import-copy"><h2>{imageFiles.length ? `${imageFiles.length.toLocaleString()} photos selected` : 'Start with your flight photos'}</h2><p>{imageFiles.length ? `${formatBytes(totalSize)} · ${files.length - imageFiles.length} unsupported files ignored` : 'Drag image files into this workspace, or select a folder.'}</p><span className="file-types">JPG · PNG · TIFF · DNG</span></div>
             <div className="import-actions"><div className="button-row">
               <button type="button" className={imageFiles.length ? 'secondary' : ''} onClick={() => folderInputRef.current?.click()} disabled={isWorking}><Icon name="folder" />{imageFiles.length ? 'Change folder' : 'Choose folder'}</button>
               <button type="button" className="secondary" onClick={() => fileInputRef.current?.click()} disabled={isWorking}>Choose files</button>
             </div>{imageFiles.length > 0 && <button type="button" onClick={handleAnalyze} disabled={isWorking}><Icon name="scan" />{analyses.length ? 'Re-analyze images' : 'Analyze images'}<Icon name="arrow" /></button>}</div>
+            {!imageFiles.length && <p className="import-assurance"><Icon name="shield" />Processed on your device. Original files stay unchanged.</p>}
             <input ref={folderInputRef} className="hidden-input" type="file" aria-label="Choose image folder" webkitdirectory="" directory="" multiple onChange={(event) => handleFileList(event.target.files)} />
             <input ref={fileInputRef} className="hidden-input" type="file" aria-label="Choose image files" multiple accept=".jpg,.jpeg,.tif,.tiff,.png,.dng" onChange={(event) => handleFileList(event.target.files)} />
           </section>
@@ -550,7 +551,7 @@ function TurnProposalPanel({ proposals, reasons, analyses, movements, settings }
             <SidewaysMovement movement={movements.get(item.file)} />
           </article>; })}</div>
           <div className="button-grid"><button type="button" onClick={() => decide('confirmed')}>Correct boundary</button><button type="button" className="secondary" onClick={() => decide('rejected')}>Wrong proposal</button><button type="button" className="secondary" onClick={() => setMoveIndex(proposal.boundaryIndex)}>Move boundary</button></div>
-          {moveIndex !== null && <div><select value={moveIndex} onChange={(event) => setMoveIndex(Number(event.target.value))}>{window.map((item, offset) => <option key={item.file.name} value={start + offset}>{item.file.name}</option>)}</select><button type="button" onClick={() => decide('moved', moveIndex)}>Save moved boundary</button></div>}
+          {moveIndex !== null && <div><select aria-label="Move boundary to photo" value={moveIndex} onChange={(event) => setMoveIndex(Number(event.target.value))}>{window.map((item, offset) => <option key={item.file.name} value={start + offset}>{item.file.name}</option>)}</select><button type="button" onClick={() => decide('moved', moveIndex)}>Save moved boundary</button></div>}
           <div className="button-grid"><button type="button" className="secondary" disabled={active === 0} onClick={() => setActive(active - 1)}>Previous</button><button type="button" className="secondary" disabled={active === proposals.length - 1} onClick={() => setActive(active + 1)}>Next</button></div>
         </article>;
       })()}
@@ -596,7 +597,7 @@ function Changelog() {
 }
 
 function EmptyState() {
-  return <div className="folder-empty"><div className="empty-folders" aria-hidden="true"><Icon name="folder" /><Icon name="folder" /><Icon name="folder" /></div><h3>A clear folder for every inspection pass</h3><p>Analyze your photos to detect pitch markers and build a folder plan.<br />You can review and adjust every boundary before exporting.</p><span><Icon name="shield" /> Original files stay unchanged</span></div>;
+  return <div className="folder-empty"><div className="empty-folders" aria-hidden="true"><Icon name="folder" /><Icon name="folder" /><Icon name="folder" /></div><h3>A folder for every inspection pass</h3><p>Analyze your photos to build a folder plan.<br />Review each boundary before exporting.</p></div>;
 }
 
 function FolderTable({ groups, selectedFolder, onSelect }) {
