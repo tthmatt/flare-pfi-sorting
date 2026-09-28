@@ -1,237 +1,137 @@
-https://flare-pfi-sorting.vercel.app/
-
 # Flare PFI Sorting
 
-**Current browser app version:** 0.5.0
-
-Version 0.5.0 adds a desktop review workspace with a compact settings sidebar,
-clickable folder plan, photo filters, expanded image viewer, and a persistent ZIP
-export bar. See the [desktop workspace guide](web-app/README.md#desktop-review-workspace).
-
-The optional altitude fallback is available under collapsed **Advanced settings**
-and stays off by default. Visual pass suggestions check altitude independently.
-
-The browser app now offers optional **Visual pass suggestions** for missed
-markers between inspection columns. Review and accept each suggested
-boundary; the first inspection photo stays in the output even when marker photos
-are skipped. This is an experimental local photo/telemetry workflow, not yet a
-fully automatic replacement for markers. See the [visual review workflow](web-app/README.md#visual-pass-suggestions-experimental).
-
-Version 0.4.2 supports suggestions around camera pitch adjustments and short pass
-excerpts. Limited altitude evidence is labelled explicitly. Nearby photos taken
-at similar camera angles may be compared without moving the proposed folder start.
-
-Version 0.4.4 also detects reversed camera tilt sweeps at steady height, including
-the missed boundary before `0024`. These smaller sideways transitions require
-stable GPS positions and supporting image matches before they are suggested.
-
-Version 0.4.5 supports a vertical flight followed by a tilted return pass in the
-next column, including the two inspection photos beginning at `0076`. A later
-marker stays separate, and suggestions with incompatible views clearly report
-an inconclusive image check.
-
-Version 0.4.6 supports moderate heading changes and height offsets between two
-stable vertical passes, including the missed boundary before `0865`. These
-suggestions require sustained opposing vertical motion and strong GPS separation
-on both sides. Image comparisons still require aligned camera views.
-
-For photos with unreliable recorded gimbal pitch (including downward views recorded
-as `0°`), the browser preview now supports reversible **Start folder here (marker)**
-corrections. It also reads original EXIF capture times ahead of DJI placeholder
-dates. See the [browser correction workflow](web-app/README.md#correcting-unreliable-gimbal-pitch-including-mavic-2).
-
-A dependency-free Python command-line tool for sorting drone building-inspection images into inspection run folders. The sorter reads embedded EXIF/XMP-style metadata and starts a new folder whenever the camera or gimbal pitch is detected as straight down (approximately 90 degrees).
-
-## Why this exists
-
-During a building inspection flight, pilots often point the drone camera straight down to mark the beginning of a new roof face, elevation, or inspection pass. This tool uses that pitch marker to split the photo stream into folders automatically.
-
-## Supported metadata
-
-The sorter looks for common embedded pitch fields used by drone vendors and metadata tools, including:
-
-- `drone-dji:GimbalPitchDegree`
-- `drone-dji:CameraPitchDegree`
-- `CameraPitchDegree`
-- `CameraPitch`
-- `GimbalPitch`
-
-Both `90` and `-90` are treated as pitched down because different vendors use different signs. The default tolerance is `2` degrees, so `-89.4` and `91.2` count as down-facing markers.
-
-The optional altitude fallback reads `RelativeAltitude` first and uses `AbsoluteAltitude`/`GPSAltitude` only as a fallback. Altitude inference is disabled by default. When enabled, it ignores altitude changes under `0.75 m`, requires at least two significant steps and at least `5 m` of vertical span on both sides of a turn, and suppresses altitude splitting immediately after real pitched-down markers. A confirmed horizontal traverse starts the next folder at the second near-level, near-0° pitch photo between sustained vertical passes in opposite directions. The first horizontal photo stays in the prior folder, and a level pause that continues in the same direction does not split.
-
-Version 0.3.4 also offers experimental, GPS-backed turn **proposals** with `--propose-gps-turns`. They are review-only shadow output for calibration with real flight sets: they never change folder membership, filenames, start reasons, CSV data, or ZIP contents. The detector requires three GPS samples per vertical pass, at least 4 m displacement, cluster radii no greater than 3 m, a 2:1 signal-to-noise ratio, and timestamp gaps no greater than 30 seconds. It uses relative or absolute altitude (not GPS altitude), and it does not use near-0° camera pitch as horizontal evidence.
-
-## Changelog
-
-### 0.3.6 - 2026-08-11
-
-- Corrected experimental GPS proposal evidence to use deterministic capture-time flight order throughout.
-- Suppress proposals when a pitched-down marker occurs anywhere across the transition-wide suppression range.
-- Added a bounded, local-only operator reviewer and redacted calibration JSON export; neither affects sorting output.
-
-### 0.3.5 - 2026-08-11
-
-- Speed up large browser selections with single-pass metadata collection, at most four concurrent reads, and throttled progress rendering.
-- Initially render 100 preview images, with controls to reveal more, while preserving all folder, CSV, and ZIP contents.
-- Preserve the 2 MiB metadata window and existing metadata priorities, warnings, grouping, ordering, and start reasons.
-
-### 0.3.4 - 2026-08-11
-
-- Added conservative GPS-backed horizontal-turn proposals in opt-in shadow mode.
-- Made timezone-free DJI capture timestamps UTC and added cross-runtime timestamp and GPS golden vectors.
-- Kept pitched-down grouping and optional altitude inference independent and unchanged; proposals require calibration with real flight sets before any production use.
-
-## Web GUI for non-technical users
-
-The easiest way to use the sorter is the local web interface. It opens a browser page where the user can paste the source image folder and the destination folder, choose copy or move, preview the result, optionally skip marker images in the sorted output, and start sorting with one button.
-
-Start the GUI by double-clicking `launch_sorter.py` from this repository, or run it directly if you are already in a terminal:
-
-```bash
-python -m pfi_sorter.web
-```
-
-After installing the package, the GUI can also be launched with either installed shortcut command:
-
-```bash
-pfi-sort-web
-# or
-pfi-sort-gui
-```
-
-The page runs locally at `http://127.0.0.1:8765/` by default and opens your browser automatically. It does not upload images to the internet; it calls the same local sorting engine used by the command-line tool.
-
-### GUI workflow
-
-1. Paste the full path to the folder containing the drone images.
-2. Paste the full path where sorted folders should be created.
-3. Leave **Copy files** selected unless you intentionally want originals moved.
-4. Optionally enable **Skip pitched-down marker photos in output** to use marker photos only as split points.
-5. Optionally enable **Infer missed altitude turns** only when a flight may be missing pitched-down marker photos.
-6. Optionally enable **Preview only** to confirm the folder plan without writing files.
-7. Click **Sort inspection images**.
-## Installation
-
-Run directly from this repository:
-
-```bash
-python -m pfi_sorter.cli ./input-images ./sorted-images
-```
-
-Or install the console script in editable mode:
-
-```bash
-python -m pip install -e .
-pfi-sort ./input-images ./sorted-images
-```
-
-## Usage
-
-```bash
-pfi-sort INPUT_DIR OUTPUT_DIR [options]
-```
-
-By default, files are copied and each pitched-down marker image is placed in the new folder it starts:
-
-```text
-input-images/
-  DJI_0001.JPG   pitch=-20
-  DJI_0002.JPG   pitch=-90  -> starts inspection_run_002
-  DJI_0003.JPG   pitch=-15
-  DJI_0004.JPG   pitch=-90  -> starts inspection_run_003
-```
-
-Result:
-
-```text
-sorted-images/
-  inspection_run_001/
-    DJI_0001.JPG
-  inspection_run_002/
-    DJI_0002.JPG
-    DJI_0003.JPG
-  inspection_run_003/
-    DJI_0004.JPG
-```
-
-To use pitched-down images only as folder split markers and skip them in the sorted output, add `--skip-markers`:
-
-```bash
-pfi-sort ./input-images ./sorted-images --skip-markers
-```
-
-With the example above, the output would skip `DJI_0002.JPG` and `DJI_0004.JPG` while still placing `DJI_0003.JPG` in `inspection_run_002`.
-
-### Options
-
-- `--move`: move files instead of copying them.
-- `--dry-run`: print the planned folder placements without writing files.
-- `--recursive`: scan nested input folders.
-- `--tolerance DEGREES`: change how close pitch must be to 90 degrees. Default: `2.0`.
-- `--folder-prefix NAME`: change folder names from `inspection_run_001` to `NAME_001`.
-- `--marker-policy same-folder`: keep a pitched-down marker in the current folder and start the following image in the next folder.
-- `--skip-markers`: use pitched-down marker photos to split folders, but do not copy or move those marker photos into the output folders.
-- `--infer-altitude-turns`: optional fallback that infers missed markers from sustained altitude reversals. Disabled by default.
-- `--altitude-tolerance METRES`: ignore altitude changes smaller than this many metres during optional altitude inference. Default: `0.75`.
-
-
-## Changelog
-
-### 0.3.3 - 2026-08-11
-
-- Added normalized telemetry parsing and deterministic metadata warnings.
-- Added local-only telemetry coverage for GPS, pitch, time, altitude sources, and yaw.
-
-
-### 0.3.2 - 2026-08-11
-
-- Refactor the browser analysis pipeline into focused metadata, ordering, grouping, telemetry, file, and report modules.
-- Standardize browser and Python metadata reads on the first 2 MiB of each image.
-- Add shared JSON golden vectors, exercised by both Python and JavaScript, to preserve the v0.3.1 grouping results.
-- Keep pitched-down markers primary, suppress consecutive duplicate markers, and retain the existing CSV and ZIP output format.
-
-### 0.3.1 - 2026-08-03
-
-- Start a new folder after the first photo of a confirmed horizontal traverse between opposite vertical facade passes.
-- Require two near-level, near-0° pitch photos plus sustained vertical movement on both sides.
-- Keep pitched-down markers primary and avoid duplicate altitude or horizontal-traverse folders around them.
-- Record `horizontal-traverse` as a distinct folder start reason.
-
-### 0.3.0 - 2026-07-10
-
-- Add optional altitude-reversal fallback splitting for missed pitched-down marker photos.
-- Require sustained, confirmed altitude turns instead of one-photo altitude direction changes.
-- Preserve folder start reasons (`first-image`, `pitched-down`, `altitude-reversal`) in CLI output, local web results, browser previews, and CSV reports.
-- Prefer `RelativeAltitude` over absolute/GPS altitude fallback metadata.
-- Treat both `+90°` and `-90°` as pitched-down markers in the browser app.
-
-
-
-### 0.2.0 - 2026-07-10
-
-Based on merged pull requests #3 through #11, this release includes:
-
-- Avoid creating extra empty folders when duplicate pitched-down marker photos appear in a row.
-- Add an option to remove the CSV report from the downloaded sorted ZIP.
-- Add browser-console status logging for troubleshooting.
-- Add browser and local UI controls for skipping pitched-down marker photos while still using them as split points.
-- Add CLI support for skipping pitched-down marker photos with `--skip-markers`.
-- Expand browser previews so all grouped photos can be reviewed with thumbnails when supported.
-- Brand the web app with Flare Dynamics naming and logo treatment.
-- Document Vercel deployment and project/security information.
-
-### 0.1.0 - Initial release
-
-Based on merged pull requests #1 and #2, the initial release added:
-
-- Python CLI and local web GUI for sorting drone inspection images by pitch metadata.
-- Browser-only Vercel web app with folder/file selection, local image processing, ZIP export, and CSV audit reporting.
+[Open the browser app](https://flare-pfi-sorting.vercel.app/)
+
+Flare PFI Sorting organizes drone inspection photos into inspection-pass folders.
+Select your photos, review the proposed boundaries, correct any missed markers,
+and download the sorted folders as a ZIP. The application runs in your browser;
+there is no command-line sorter or local file-moving service to install.
+
+## Review and export an inspection
+
+1. Choose a photo folder or individual files, then select **Analyze images**.
+2. Review the **Folder plan** and photo previews. Search by filename or path,
+   filter the review, or open a JPG/PNG in the larger image viewer.
+3. Correct a photo's **Folder decision** when needed. Use **Start folder here
+   (marker)** for a missed downward marker, or **Start folder here (keep photo)**
+   for the first inspection photo of a new pass.
+4. Optionally run **Visual pass suggestions** to review possible missed
+   boundaries. A suggestion changes folders only after you accept it.
+5. Choose whether to skip marker photos, retain source subfolder paths, and
+   include a CSV report, then download every ZIP part shown.
+
+The app copies the selected image bytes into the download. It does not move,
+rename, or modify the original files. Review filters affect the displayed photos;
+they do not exclude photos from the planned export.
+
+## Save and resume a review
+
+The latest analyzed review is saved automatically in this browser after changes.
+Use **Save review file** to download a separate JSON copy. Photos are not stored
+with the review.
+
+To resume, select the same original files using the same folder or individual
+file selection method, then choose **Resume saved review**. For a downloaded
+review, use **Load review file** first. The app checks paths, sizes, modification
+times, and fingerprints covering every image byte before restoring settings and photo
+decisions, including accepted pass boundaries.
+
+Starting an analysis on a new selection replaces the latest local saved review.
+Dismissed suggestions and experimental calibration decisions are not saved.
+If browser storage is unavailable, the app displays a notice; downloading a
+review file still works. See [saved reviews](web-app/README.md#saved-reviews)
+for the checks and limitations.
+
+## ZIP downloads
+
+Large exports default to smaller ZIPs with about 250 MiB of input photos per
+part. Download each part using its button and extract all parts into the same
+destination folder. Output names are allocated across the whole export so
+duplicate names remain distinct and consistent between parts.
+
+You can choose a single ZIP instead. Export progress is shown, and **Cancel
+export** stops the worker without changing your review. A photo larger than
+250 MiB receives its own larger part. The part size is not a cap on total
+browser memory use.
+
+## How boundaries are found
+
+Pitched-down photos are the primary marker. By default, a pitch within 2° of
+either −90° or +90° qualifies. Consecutive automatic markers form one boundary.
+Manual marker corrections are available when recorded gimbal pitch is wrong.
+
+The optional **Infer missed altitude turns** setting starts off. It looks for
+sustained altitude reversals and confirmed level traverses between opposing
+vertical passes. It only joins continuous readings from the same known altitude
+source, with valid increasing capture times no more than 60 seconds apart.
+Visual suggestions check altitude independently and can remain enabled as a
+review workflow while automatic altitude inference is off.
+
+Experimental visual suggestions combine capture order, GPS movement, camera
+direction, altitude, and local image comparisons. They can miss boundaries or
+suggest an incorrect one; check the surrounding photos before accepting. The
+separate experimental GPS proposal view is for calibration and does not change
+folder membership.
+
+See the [browser workspace guide](web-app/README.md) for correction controls,
+visual-pass patterns, telemetry interpretation, and current limitations.
+
+## Images and metadata
+
+- Supported input extensions: JPG/JPEG, PNG, TIFF/TIF, and DNG.
+- JPG/JPEG and PNG support browser previews and visual image comparisons.
+- Metadata analysis reads up to the first 2 MiB of each file, using embedded
+  EXIF/XMP information where available.
+- Original EXIF capture dates take precedence over placeholder XMP dates.
+  Timestamps without a timezone use UTC for ordering.
+- Relative altitude is preferred over absolute or GPS altitude. Missing or
+  incompatible telemetry is shown explicitly; it is not treated as zero.
+
+## Privacy
+
+Photo metadata analysis, previews, and visual comparisons happen locally in the
+browser. The app does not upload selected images for processing. The hosted app
+includes Vercel Web Analytics for site usage. Downloaded photos retain their
+original embedded metadata, which can include locations and capture times.
+Saved reviews contain file inventory, content fingerprints, settings, and review
+decisions; treat them as inspection data when sharing or using a shared browser.
 
 ## Development
 
-Run the test suite:
+Use Node.js 22 and npm. From the repository root:
 
 ```bash
-python -m pytest
+npm ci --prefix web-app
+npm run dev --prefix web-app
 ```
+
+Run the browser tests and production build:
+
+```bash
+npm test --prefix web-app
+npm run build --prefix web-app
+```
+
+Run the browser workflow checks after installing Chromium for Playwright:
+
+```bash
+cd web-app
+npx playwright install chromium
+npm run test:e2e
+```
+
+Regression fixtures live in `web-app/test-support/`, including the golden
+metadata, grouping, and GPS vectors in `web-app/test-support/golden/`.
+The metadata benchmark is available with
+`npm run benchmark:metadata --prefix web-app`.
+For real-flight evaluation, use the [validation guide](docs/validation.md).
+Regression tests do not establish measured field accuracy.
+
+## Deployment
+
+The production build is a static site in `web-app/dist`. For Vercel, set the
+project root to `web-app`, use the Vite framework preset, install with `npm ci`,
+build with `npm run build`, and publish `dist`. Other static hosts can serve the
+same built directory.
+
+For sensitive vulnerability reports, see [SECURITY.md](SECURITY.md).

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { analyzeGpsTurns } from './turnDetection.js';
 
-const golden = JSON.parse(readFileSync(new URL('../../tests/gps_turn_golden_vectors.json', import.meta.url), 'utf8'));
+const golden = JSON.parse(readFileSync(new URL('../test-support/golden/gps_turn_golden_vectors.json', import.meta.url), 'utf8'));
 test('manual markers suppress GPS proposals without replacing raw zero-degree pitch', () => {
   const vector = golden.vectors.find((item) => item.expected.proposalCount > 0);
   const records = structuredClone(vector.records);

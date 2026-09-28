@@ -28,9 +28,19 @@ test('supports consistent sideways translation across distinct details, includin
   }
 });
 
+test('one-pixel changes in horizontal or vertical translation retain the same evidence', () => {
+  const before = texture();
+  for (const [dx, dy] of [[-60, 2], [-61, 2], [-60, 3], [-61, 3], [61, -3]]) {
+    const result = matchLateralMotion(before, shift(before, dx, dy, 0.85), -Math.sign(dx));
+    assert.equal(result.supported, true, `translation ${dx}, ${dy}`);
+    assert.ok(Math.abs(result.dxFraction - dx / before.width) < 0.01);
+    assert.ok(Math.abs(result.dyFraction - dy / before.height) < 0.01);
+  }
+});
+
 test('does not claim a sideways pass for vertical movement, a stationary view or unrelated images', () => {
   const before = texture();
-  for (const after of [shift(before, 0, 20), before, texture(789)]) {
+  for (const after of [shift(before, 0, 20), shift(before, 1, 21), before, texture(789)]) {
     assert.equal(matchLateralMotion(before, after, 1).supported, false);
   }
 });
@@ -39,7 +49,9 @@ test('flat surfaces and repeating texture produce insufficient or ambiguous evid
   const flat = { width: 240, height: 160, data: new Uint8Array(240 * 160).fill(130) };
   assert.equal(matchLateralMotion(flat, flat, 1).supported, false);
   const repeat = { ...flat, data: Uint8Array.from(flat.data, (_, i) => ((Math.floor(i / 240) % 16 < 8) !== (i % 16 < 8)) ? 30 : 220) };
-  assert.equal(matchLateralMotion(repeat, shift(repeat, -48, 0), 1).supported, false);
+  for (const [dx, dy] of [[-48, 0], [-49, 1]]) {
+    assert.equal(matchLateralMotion(repeat, shift(repeat, dx, dy), 1).supported, false);
+  }
 });
 
 test('unsupported sizes and mismatched image shapes are explicit, bounded failures', () => {

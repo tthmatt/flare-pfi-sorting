@@ -1,19 +1,21 @@
 # Drone Image Sorter Web App
 
-**Current version:** 0.5.0
+**Current version:** 0.6.0
 
-Browser-based version of the PFI drone inspection image sorter for deployment on Vercel or any static hosting provider.
+The browser application for PFI drone inspection image sorting, deployable on Vercel or any static hosting provider.
 
 ## What this app does
 
 - Runs fully in the user's browser.
 - Lets the user select a folder or individual image files.
 - Reads DJI-style pitch metadata from the first part of each image file.
-- Starts a new output folder whenever an image pitch is near `-90` degrees by default.
+- Starts a new output folder whenever an image pitch is near either `-90` or `+90` degrees by default.
 - Places the marker image at the beginning of the new folder.
-- Generates a ZIP download containing the sorted folder structure and a `sort_report.csv` audit file.
+- Generates a ZIP download containing the sorted folder structure, with an optional `sort_report.csv` audit file.
 
-Images are not uploaded to a server by this app.
+Images are not uploaded to a server by this app. The hosted page includes Vercel
+Web Analytics for usage measurement. Downloaded images retain their original
+embedded metadata.
 
 ## Desktop review workspace
 
@@ -31,12 +33,64 @@ bar remain accessible while scrolling through a large photo selection.
 - Expand **Advanced settings** for pitch thresholds, altitude fallback and
   experimental GPS proposals. Telemetry, detailed help and version history are
   also collapsible.
-- **Include CSV report** adds the report to the ZIP; it is off by default, as
-  before. **Skip marker photos** controls whether marker images are exported.
+- Clear **Remove CSV report from sorted ZIP** to include the report; reports are
+  excluded by default. **Skip marker photos** controls whether marker images are exported.
 
-Review filters only change what is displayed. ZIP export still includes every
-output folder. Sorting, metadata, visual-pass detection and original photo bytes
-are unchanged by the layout update.
+Review filters only change what is displayed. The complete export plan still
+includes every output folder. Original photo bytes remain unchanged.
+
+## Saved reviews
+
+The latest analyzed review is automatically saved in local storage after changes
+settle. Saving starts after a short delay of about 400 ms; initial content
+fingerprinting can take longer for a full flight. Fingerprints are cached for
+the selected files during the session. **Save review file** downloads a separate
+JSON copy for backup or transfer. Neither method stores the original photos.
+
+To recover a local review after reloading, select the same originals and choose
+**Resume saved review**. To use a downloaded review, choose **Load review file**,
+select the originals, and then resume. Use the same selection method as before:
+folder selection records paths that may differ from individual file selection.
+
+Before restoring, the app checks each file's path, size, modification time, and
+a content fingerprint covering every byte. Files are read in bounded 4 MiB
+chunks; the app hashes each chunk with SHA-256, then hashes the ordered chunk
+digests. This is a content fingerprint, not a conventional whole-file SHA-256
+checksum. A mismatch prevents the saved decisions from being applied.
+
+Resume restores sorting settings and per-photo overrides, including accepted
+**Start folder here (keep photo)** boundaries. It does not restore dismissed
+suggestions or experimental GPS calibration decisions. Run visual suggestions
+again when needed. The original photos must remain available to re-analyze and
+export.
+
+Starting analysis on a new selection replaces the latest local saved review.
+Download a review file first if you need to retain it. Browser storage is tied
+to this site's browser profile and can be cleared by the browser. If storage is
+unavailable, the app shows an explicit notice; review-file download still works.
+Local saving is capped at 4 MiB before browser quotas are applied. Downloaded
+review files support up to 32 MiB and 50,000 photos; larger reviews must be split
+into smaller selections.
+
+## ZIP exports
+
+**Split large exports into smaller ZIPs** is enabled by default. Parts contain
+about 250 MiB of input photo bytes each. Use each **Download part** button
+separately, then extract all parts into the same destination folder. A part can
+contain pieces of multiple inspection folders. Naming is allocated once across
+the full export, so duplicate or sanitized filenames stay distinct across parts.
+When enabled, each part includes the same complete `sort_report.csv`, with an
+`output_path` column for every exported photo. Extracting a later part therefore
+retains the complete audit report.
+
+Clear that option for a single ZIP. Export runs in a worker with progress and a
+**Cancel export** control. Cancellation terminates the active worker and keeps
+the review decisions intact; it does not remove any part already downloaded.
+
+A photo larger than 250 MiB is placed in its own larger part. The part limit is
+based on input bytes, not ZIP overhead, final download size, or total browser
+memory. Smaller parts reduce the amount generated at once, but very large
+individual images or limited-memory devices may still need a smaller selection.
 
 ## Sideways movement in image previews
 
@@ -61,12 +115,15 @@ This display does not change pass detection, folder decisions, CSV or ZIP output
 inside **Advanced settings** in the sidebar. The section starts collapsed and
 altitude inference remains off by default. Enable it when you want automatic
 altitude-based fallback splitting, including when GPS or camera-direction data
-is unavailable. An **Altitude fallback on** label remains visible in the section
+is unavailable. Evidence must stay within a continuous sequence of the same
+known altitude source and valid, strictly increasing capture times with gaps no
+greater than 60 seconds. Missing values, source changes, duplicate timestamps,
+and longer gaps break the evidence sequence. An **Altitude fallback on** label remains visible in the section
 summary if you enable the fallback and collapse the section.
 
 Leave the fallback off for the visual review workflow. **Visual pass suggestions**
 checks altitude independently of this option. Collapsing Advanced settings keeps
-your current choices; reloading the app restores its defaults.
+your current choices. Resume a saved review to recover its settings after reload.
 
 ## Visual pass suggestions (experimental)
 
@@ -85,8 +142,9 @@ sweeps at steady height, a missed pitch marker can be reviewed using ordinary ph
 the detector misses. **Keep in current folder (inspection photo)** prevents a
 split at that photo. Accepted starts use capture-time order, are recorded as
 `manual-split` with `marker_override=split` in the CSV, and can be undone. Like
-other corrections, they survive re-analysis of the same selection, but not new
-file selections or a page reload. Undo restores any prior decision on that photo.
+other corrections, they survive re-analysis of the same selection and can be
+restored through a saved review after reselecting the originals. Undo in the
+current suggestion session restores any prior decision on that photo.
 
 The detector first checks consecutive capture-time records for predominantly
 sideways displacement relative to **gimbal yaw**, compatible relative/absolute
@@ -157,7 +215,8 @@ views remain an inconclusive image check rather than a claimed match.
 
 Candidate JPG/PNG pairs are decoded sequentially in a Web Worker into thumbnails
 no larger than 480 pixels. Distinct normalised patches in the lower image region
-are matched and checked for consistent sideways movement. Excluding the upper
+are matched against densely sampled target positions, including odd pixel
+offsets, and checked for consistent sideways movement. Excluding the upper
 region reduces distant-building/sky matches, but is only a heuristic: this is
 not semantic facade recognition. No ML model, network request or paid API is
 used for the visual check. The main thread remains available for cancellation.
@@ -198,7 +257,8 @@ height by −2.2 m, exceeding the old adjacent-view limits of 8° and 2 m. The n
 rule proposes only `0865`; accepting it produces 6/5 photos. The image check is
 inconclusive because the headings differ. Its telemetry fixture is also redacted.
 These limited samples do not establish general accuracy or Mavic 2 support.
-The Python CLI is unchanged.
+The matching regression checks do not measure real-flight accuracy. Follow the
+[validation guide](../docs/validation.md) before making accuracy claims.
 
 ## Correcting unreliable gimbal pitch (including Mavic 2)
 
@@ -215,8 +275,9 @@ marker. An explicit correction starts a folder even beside another marker.
   the next inspection photo starts the folder. Skipped markers remain in the review
   so you can undo mistakes, including when every photo was skipped.
 - Search by filename or folder path to find a photo in a large selection.
-- Corrections survive re-analysis of the same selection, but choosing new files
-  or reloading the page clears them. **Reset corrections** restores automation.
+- Corrections survive re-analysis of the same selection. After choosing files
+  again or reloading, select the originals and use **Resume saved review** to
+  restore them. **Reset corrections** restores automation.
 - Original image bytes and recorded pitch are unchanged. CSV reports include
   `manual-marker` folder-start reasons and a `marker_override` column.
 
@@ -225,14 +286,26 @@ within its existing 2 MiB read limit. It prefers EXIF DateTimeOriginal, then XMP
 DateTimeOriginal, then EXIF DateTimeDigitized, then XMP CreateDate. Date-only DJI
 placeholders such as `1970-01-01` are not valid capture times. EXIF timezone offsets
 are honored; timestamps without an offset retain the existing UTC sorting convention.
-This change applies to the browser app; the Python CLI is unchanged.
 
 ## Local development
 
+Use Node.js 22 and npm. From the repository root:
+
 ```bash
 cd web-app
-npm install
+npm ci
 npm run dev
+```
+
+Run `npm test` from `web-app` for the browser regression suite. Golden metadata,
+grouping, and GPS fixtures live in `web-app/test-support/golden/`; redacted visual
+pass fixtures and test helpers live directly in `web-app/test-support/`.
+
+For browser workflow checks, run these commands from `web-app`:
+
+```bash
+npx playwright install chromium
+npm run test:e2e
 ```
 
 ## Production build
@@ -250,12 +323,21 @@ Import this GitHub repository into Vercel and use these settings:
 
 - Root Directory: `web-app`
 - Framework Preset: `Vite`
-- Install Command: `npm install`
+- Install Command: `npm ci`
 - Build Command: `npm run build`
 - Output Directory: `dist`
 
 
 ## Changelog
+
+### 0.6.0 - 2026-09-28
+
+- Focus the repository, documentation, and CI on the browser application.
+- Save and restore reviewed settings and photo decisions with full-content file fingerprints.
+- Preserve colliding export names and offer smaller ZIP parts, progress, and cancellation.
+- Keep altitude fallback within continuous, compatible telemetry sequences.
+- Match visual patches at odd as well as even pixel offsets.
+- Add browser workflow checks and a real-flight validation guide without claiming field accuracy.
 
 ### 0.4.6 - 2026-09-24
 
@@ -337,8 +419,8 @@ Import this GitHub repository into Vercel and use these settings:
 ### 0.3.2 - 2026-08-11
 
 - Refactor image metadata, ordering, grouping, telemetry, file helpers, and report generation out of `App.jsx`.
-- Read metadata from a consistent 2 MiB window in both the browser and Python sorter.
-- Share JSON golden grouping vectors between the JavaScript and Python test suites.
+- Read metadata from a consistent 2 MiB window.
+- Add JSON golden grouping vectors for regression testing.
 - Preserve v0.3.1 grouping behavior, including pitched-down marker priority and consecutive duplicate-marker suppression.
 
 ### 0.3.1 - 2026-08-03
@@ -362,8 +444,7 @@ Based on merged pull requests #3 through #11, this release includes:
 - Avoid creating extra empty folders when duplicate pitched-down marker photos appear in a row.
 - Add an option to remove the CSV report from the downloaded sorted ZIP.
 - Add browser-console status logging for troubleshooting.
-- Add browser and local UI controls for skipping pitched-down marker photos while still using them as split points.
-- Add CLI support for skipping pitched-down marker photos with `--skip-markers`.
+- Add browser controls for skipping pitched-down marker photos while still using them as split points.
 - Expand browser previews so all grouped photos can be reviewed with thumbnails when supported.
 - Brand the web app with Flare Dynamics naming and logo treatment.
 - Document Vercel deployment and project/security information.
@@ -372,9 +453,9 @@ Based on merged pull requests #3 through #11, this release includes:
 
 Based on merged pull requests #1 and #2, the initial release added:
 
-- Python CLI and local web GUI for sorting drone inspection images by pitch metadata.
 - Browser-only Vercel web app with folder/file selection, local image processing, ZIP export, and CSV audit reporting.
 
 ## Notes
 
-Browser folder selection uses `webkitdirectory`, which is supported by Chromium-based browsers and Safari. Users can still use the Files button if folder selection is unavailable.
+Browser folder selection uses `webkitdirectory`. Use the Files button if folder
+selection is unavailable in your browser.

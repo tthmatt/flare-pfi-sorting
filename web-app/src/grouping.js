@@ -105,10 +105,22 @@ export async function analyzeFiles(files, settings, onProgress, options = {}) {
 }
 
 export function altitudeDirection(previous, current, tolerance) {
-  if (previous === null || previous === undefined || current === null || current === undefined) return 0;
+  if (!Number.isFinite(previous) || !Number.isFinite(current)) return 0;
   const delta = current - previous;
   if (Math.abs(delta) <= tolerance) return 0;
   return delta > 0 ? 1 : -1;
+}
+
+function continuousAltitude(previous, current) {
+  if (!previous || !Number.isFinite(previous.altitude) || !Number.isFinite(current.altitude)
+    || !['relative', 'absolute', 'gps'].includes(current.altitudeSource)
+    || current.altitudeSource !== previous.altitudeSource) return false;
+  const previousTime = previous.captureDate?.getTime?.();
+  const currentTime = current.captureDate?.getTime?.();
+  // Match the visual-pass time bound. A missing reading or flight interruption
+  // ends the evidence; never subtract heights from different altitude datums.
+  return Number.isFinite(previousTime) && Number.isFinite(currentTime)
+    && currentTime > previousTime && currentTime - previousTime <= 60_000;
 }
 
 export function inferAltitudeStarts(ordered, pitchStarts, settings) {
@@ -132,7 +144,7 @@ export function inferAltitudeReversalStarts(ordered, pitchStarts, settings) {
 
   for (let index = 0; index < ordered.length; index += 1) {
     const altitude = ordered[index].altitude;
-    if (pitchStarts[index]) {
+    if (pitchStarts[index] || !continuousAltitude(ordered[index - 1], ordered[index])) {
       previousAltitude = altitude;
       runDirection = 0;
       runSteps = 0;
@@ -141,7 +153,8 @@ export function inferAltitudeReversalStarts(ordered, pitchStarts, settings) {
       candidateSteps = 0;
       candidateStartIndex = null;
       candidateStartAltitude = null;
-      suppressNormals = settings.altitudeMarkerSuppression;
+      // A metadata break must not cancel the remaining suppression after a marker.
+      suppressNormals = pitchStarts[index] ? settings.altitudeMarkerSuppression : Math.max(0, suppressNormals - 1);
       continue;
     }
     if (suppressNormals > 0) {
@@ -209,13 +222,13 @@ export function inferHorizontalTraverseStarts(ordered, pitchStarts, settings) {
 
   for (let index = 0; index < ordered.length; index += 1) {
     const { altitude, pitch } = ordered[index];
-    if (pitchStarts[index]) {
+    if (pitchStarts[index] || !continuousAltitude(ordered[index - 1], ordered[index])) {
       previousAltitude = altitude;
       runDirection = 0;
       runSteps = 0;
       runStartAltitude = null;
       traverse = null;
-      suppressNormals = settings.altitudeMarkerSuppression;
+      suppressNormals = pitchStarts[index] ? settings.altitudeMarkerSuppression : Math.max(0, suppressNormals - 1);
       continue;
     }
     if (suppressNormals > 0) {

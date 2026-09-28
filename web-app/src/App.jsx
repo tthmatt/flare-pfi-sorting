@@ -6,15 +6,19 @@ import { sortAnalyses } from './ordering.js';
 import { analyzeGpsTurns } from './turnDetection.js';
 import { buildReviewItems } from './review.js';
 import { canPreviewInBrowser, getDisplayPath, getFileName, isImageFile, safePathPart } from './files.js';
-import { downloadBlob, makeZip } from './reports.js';
+import { downloadBlob, makeZipBatch, planZipBatches, DEFAULT_ZIP_BATCH_BYTES } from './reports.js';
+import { DEFAULT_SETTINGS } from './settings.js';
+import { restoreReviewSession } from './reviewSession.js';
+import { ReviewSessionControls, useReviewSession } from './reviewSessionUI.jsx';
 import { createCalibrationReport } from './calibration.js';
 import { analysisProgress, analysisSummary, logStatus } from './telemetry.js';
 import { analyzeVisualPasses } from './visualAnalysis.js';
 import { buildPreviewMovements } from './previewMovement.js';
 import { Icon, PhotoViewer } from './ui.jsx';
 
-const APP_VERSION = '0.5.0';
+const APP_VERSION = '0.6.0';
 const CHANGELOG = [
+  { version: '0.6.0', date: '2026-09-28', changes: ['Save and resume reviews locally or from a review file after verifying the original photos.', 'Preserve every photo in collision-safe ZIP exports, with progress, cancellation and smaller parts.', 'Guard altitude inference against metadata discontinuities and improve image matching for small shifts.', 'Keep one browser sorter, with browser workflow tests and no Python installation.'] },
   {
     version: '0.5.0', date: '2026-09-24',
     changes: ['Redesigned the desktop workspace with a compact settings sidebar and a clear import, review and export workflow.', 'Added folder and review filters, larger photo previews, full-size image viewing and clearer folder-start labels.', 'Kept telemetry, detailed guidance and version history available in collapsible sections.'],
@@ -76,7 +80,7 @@ const CHANGELOG = [
     date: '2026-08-11',
     changes: [
       'Refactored metadata, ordering, grouping, telemetry, file helpers, and report generation into focused modules.',
-      'Standardized metadata reads at 2 MiB and added shared Python/JavaScript golden vectors for v0.3.1 grouping behavior.',
+      'Standardized metadata reads at 2 MiB and added shared browser golden vectors for v0.3.1 grouping behavior.',
     ],
   },
   {
@@ -111,7 +115,7 @@ const CHANGELOG = [
     version: '0.1.0',
     date: 'Initial release',
     changes: [
-      'Created the Python CLI and local web GUI for sorting drone inspection images by pitch metadata.',
+      'Created the initial sorter for drone inspection images using pitch metadata.',
       'Added the browser-only Vercel web app with folder/file selection, local image processing, ZIP export, and CSV audit reporting.',
     ],
   },
@@ -166,28 +170,11 @@ export default function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFolder, setSelectedFolder] = useState('');
   const [reviewResetKey, setReviewResetKey] = useState(0);
-  const [settings, setSettings] = useState({
-    tolerance: 2,
-    inferAltitudeTurns: false,
-    altitudeTolerance: 0.75,
-    altitudeMinSteps: 2,
-    altitudeMinSpan: 5,
-    altitudeMarkerSuppression: 2,
-    horizontalMinPhotos: 2,
-    horizontalPitchTolerance: 5,
-    markerPitch: -90,
-    folderPrefix: 'flare_inspection',
-    sortBy: 'filename',
-    keepFolderPaths: false,
-    skipMarkers: false,
-    removeCsvReport: true,
-    proposeGpsTurns: false,
-    gpsWindowSize: 3,
-    gpsMinDisplacementMeters: 4,
-    gpsMaxClusterRadiusMeters: 3,
-    gpsMinSignalRatio: 2,
-    gpsMaxGapSeconds: 30,
-  });
+  const [settings, setSettings] = useState(() => ({ ...DEFAULT_SETTINGS }));
+  const exportController = useRef(null);
+  const [exportWorking, setExportWorking] = useState(false);
+  const [exportProgress, setExportProgress] = useState(null);
+  const batchExports = settings.splitExports;
 
   const imageFiles = useMemo(() => files.filter(isImageFile), [files]);
   const totalSize = useMemo(() => imageFiles.reduce((sum, file) => sum + file.size, 0), [imageFiles]);
@@ -200,7 +187,10 @@ export default function App() {
   const unknownPitchCount = useMemo(() => analyses.filter((item) => item.pitch === null).length, [analyses]);
   const hasInspectionSplits = reviewedAnalyses.some((item) => item.markerOverride === 'split');
 
-  useEffect(() => () => visualController.current?.abort(), []);
+  const reviewSession = useReviewSession({ files: imageFiles, analyses, settings, overrides: markerOverrides, isWorking });
+  const exportBatches = useMemo(() => planZipBatches(groups, settings.keepFolderPaths, batchExports ? DEFAULT_ZIP_BATCH_BYTES : Number.MAX_SAFE_INTEGER), [groups, settings.keepFolderPaths, batchExports]);
+
+  useEffect(() => () => { visualController.current?.abort(); exportController.current?.abort(); }, []);
 
   useEffect(() => {
     logStatus(status);
@@ -256,6 +246,7 @@ export default function App() {
       const result = await analyzeFiles(imageFiles, settings, (done, total) => {
         setStatus(analysisProgress(done, total));
       });
+      reviewSession.beginReview();
       setAnalyses(result.analyses);
       setElapsedMs(result.elapsedMs);
       setStatus('Analysis complete. Review the photos and correct any missed markers below.');
@@ -285,21 +276,49 @@ export default function App() {
     }
   }
 
-  async function handleDownloadZip() {
-    if (!groups.length) {
-      setStatus('Analyze images before downloading the ZIP.');
-      return;
-    }
+  async function handleResumeReview() {
+    if (!reviewSession.savedReview || !imageFiles.length) return;
     setIsWorking(true);
+    setStatus('Checking the original photos for this review…');
     try {
-      setStatus('Creating ZIP file...');
-      const blob = await makeZip(groups, settings.keepFolderPaths, !settings.removeCsvReport);
-      downloadBlob(blob, `${safePathPart(settings.folderPrefix)}_sorted.zip`);
-      setStatus('ZIP download started.');
+      const restored = await restoreReviewSession(reviewSession.savedReview, imageFiles);
+      const result = await analyzeFiles(imageFiles, restored.settings, (done, total) => setStatus(analysisProgress(done, total)));
+      setSettings(restored.settings);
+      setMarkerOverrides(restored.overrides);
+      reviewSession.beginReview();
+      setAnalyses(result.analyses);
+      setElapsedMs(result.elapsedMs);
+      setVisualResult(null);
+      setSelectedFolder('');
+      setCalibrationKey((key) => key + 1);
+      setReviewResetKey((key) => key + 1);
+      setStatus(`Review resumed. ${restored.overrides.size} folder decisions restored.`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
+    } finally { setIsWorking(false); }
+  }
+
+  async function handleDownloadZip(batchIndex = 0) {
+    const batch = exportBatches[batchIndex];
+    if (!batch) return;
+    const controller = new AbortController();
+    exportController.current = controller;
+    setIsWorking(true); setExportWorking(true); setExportProgress(0);
+    try {
+      const label = exportBatches.length > 1 ? `ZIP ${batchIndex + 1} of ${exportBatches.length}` : 'ZIP';
+      setStatus(`Creating ${label}…`);
+      const blob = await makeZipBatch(batch, !settings.removeCsvReport, {
+        signal: controller.signal,
+        onProgress: ({ percent }) => { setExportProgress(percent); setStatus(`Creating ${label}: ${Math.round(percent)}%`); },
+      });
+      const part = exportBatches.length > 1 ? `_part_${String(batchIndex + 1).padStart(3, '0')}` : '';
+      downloadBlob(blob, `${safePathPart(settings.folderPrefix)}_sorted${part}.zip`);
+      setStatus(`${label} download started.${exportBatches.length > 1 ? ' Download each remaining ZIP part below.' : ''}`);
+    } catch (error) {
+      setStatus(error.name === 'AbortError' ? 'ZIP export cancelled. Your review is unchanged.' : error.message);
     } finally {
-      setIsWorking(false);
+      exportController.current = null;
+      setIsWorking(false); setExportWorking(false); setExportProgress(null);
     }
   }
 
@@ -339,6 +358,7 @@ export default function App() {
             <div className="settings-section"><h3>ZIP contents</h3>
               <label className="check-row"><input type="checkbox" checked={settings.skipMarkers} onChange={(event) => updateSetting('skipMarkers', event.target.checked)} /><span>Skip pitched-down marker photos in output<small>Use them to split folders, then leave them out of the ZIP.</small></span></label>
               <label className="check-row"><input type="checkbox" checked={settings.removeCsvReport} onChange={(event) => updateSetting('removeCsvReport', event.target.checked)} /><span>Remove CSV report from sorted ZIP<small>Turn this off to include a record of each folder decision.</small></span></label>
+              <label className="check-row"><input type="checkbox" checked={batchExports} onChange={(event) => updateSetting('splitExports', event.target.checked)} /><span>Split large exports into smaller ZIPs<small>About 250 MiB of photos per part. Download each part separately.</small></span></label>
               <label className="check-row"><input type="checkbox" checked={settings.keepFolderPaths} onChange={(event) => updateSetting('keepFolderPaths', event.target.checked)} /><span>Keep original paths<small>Preserve subfolders inside each output folder.</small></span></label>
             </div>
 
@@ -374,6 +394,8 @@ export default function App() {
 
           <div className="status-line" role="status" aria-live="polite" aria-atomic="true"><Icon name={isWorking ? 'loader' : analyses.length ? 'check' : 'info'} className={isWorking ? 'spin' : ''} /><span>{status}</span></div>
 
+          <ReviewSessionControls session={reviewSession} onResume={handleResumeReview} disabled={isWorking} hasPhotos={imageFiles.length > 0} hasAnalysis={analyses.length > 0} />
+
           {analyses.length > 0 && <div className="metric-grid" aria-label="Analysis summary">
             <div><Icon name="images" /><strong>{analyses.length.toLocaleString()}</strong><span>Photos analyzed</span></div>
             <div><Icon name="folder" /><strong>{groups.length.toLocaleString()}</strong><span>Output folders</span></div>
@@ -395,12 +417,18 @@ export default function App() {
           {analyses.length > 0 && <Preview key={`${selectedFolder}:${reviewResetKey}`} analyses={reviewedAnalyses} groups={groups} settings={settings} movements={previewMovements} onOverride={setMarkerOverride} onReset={resetMarkerOverrides} overrideCount={markerOverrides.size} disabled={isWorking} selectedFolder={selectedFolder} onSelectFolder={setSelectedFolder} />}
           {analyses.length > 0 && <TelemetryCoverage analyses={analyses} />}
           {analyses.length > 0 && settings.proposeGpsTurns && <TurnProposalPanel key={calibrationKey} proposals={turnCandidates} reasons={turnReasonCounts} analyses={captureOrderedAnalyses} movements={previewMovements} settings={settings} />}
+          {exportBatches.length > 1 && <section className="panel" aria-label="ZIP parts">
+            <div className="panel-heading"><h2>ZIP parts</h2><span className="badge">{exportBatches.length} parts</span></div>
+            <p>Download one part at a time to keep export memory use smaller. Extract all parts into the same destination folder.</p>
+            <div className="button-row">{exportBatches.map((batch, index) => <button type="button" className="secondary" key={index} disabled={isWorking} onClick={() => handleDownloadZip(index)}>Download part {index + 1} · {batch.fileCount} photos · {formatBytes(batch.sizeBytes)}</button>)}</div>
+          </section>}
+          {exportBatches.some((batch) => batch.oversized) && <p>One photo exceeds the ZIP part size. It will be exported in its own larger part.</p>}
           <Changelog />
         </section>
       </div>
       <footer className="export-bar">
         <div className="export-summary"><Icon name="folder" /><div><strong>{groups.length ? `${groups.length} folders · ${groups.reduce((count, group) => count + group.files.length, 0).toLocaleString()} photos in ZIP` : 'Your next inspection, organized.'}</strong><span>{analyses.length ? analysisSummary(groups, skippedMarkerCount, elapsedMs, analyses.length) : 'Add photos and analyze them to build your folder plan.'}</span></div></div>
-        <div className="export-actions">{analyses.length > 0 && <span className="export-reminder">Review each pass before exporting</span>}<button type="button" className="download" onClick={handleDownloadZip} disabled={isWorking || !groups.length}><Icon name="download" /> Download ZIP<Icon name="arrow" /></button></div>
+        <div className="export-actions">{analyses.length > 0 && <span className="export-reminder">Review each pass before exporting</span>}<button type="button" className="download" onClick={() => handleDownloadZip(0)} disabled={isWorking || !groups.length}><Icon name="download" /> {exportBatches.length > 1 ? "Download ZIP part 1" : "Download ZIP"}<Icon name="arrow" /></button>{exportWorking && <><progress aria-label="ZIP export progress" max="100" value={exportProgress ?? 0} /><button type="button" className="secondary" onClick={() => exportController.current?.abort()}>Cancel export</button></>}</div>
       </footer>
       <Analytics />
     </main>
@@ -618,7 +646,7 @@ function Preview({ analyses, groups, settings, movements, onOverride, onReset, o
         <button type="button" className="secondary reset-button" disabled={disabled || !overrideCount} onClick={onReset}><Icon name="reset" />Reset corrections ({overrideCount})</button>
       </div>
       <div className="review-filters" role="group" aria-label="Filter photos by review status">{filters.map((filter) => <button type="button" key={filter.id} aria-pressed={reviewFilter === filter.id} onClick={() => { setReviewFilter(filter.id); setVisibleCount(100); }}>{filter.label}<span>{inFolder.filter(filter.matches).length}</span></button>)}</div>
-      <details className="inline-help"><summary>Folder decisions & movement guide</summary><p>Use “Start folder here (keep photo)” for the first inspection photo of a new pass. Use the marker option for a downward marker with incorrect recorded pitch. “Keep in current folder” prevents a split at that photo. Corrections update folders and the ZIP immediately.</p><p>Skipped markers stay visible here. Corrections are kept when you re-analyze, and cleared when you choose new files or reload the page.</p><p>Sideways movement is a GPS estimate from the previous photo with a valid capture time, including skipped markers. Left/right is relative to that photo’s camera heading. Search and display order do not change the comparison.</p></details>
+      <details className="inline-help"><summary>Folder decisions & movement guide</summary><p>Use “Start folder here (keep photo)” for the first inspection photo of a new pass. Use the marker option for a downward marker with incorrect recorded pitch. “Keep in current folder” prevents a split at that photo. Corrections update folders and the ZIP immediately.</p><p>Skipped markers stay visible here. Corrections are kept when you re-analyze and saved on this device. To recover after reloading or choosing files again, select the original photos and use Resume saved review.</p><p>Sideways movement is a GPS estimate from the previous photo with a valid capture time, including skipped markers. Left/right is relative to that photo’s camera heading. Search and display order do not change the comparison.</p></details>
       {!filteredItems.length && <div className="empty-state"><strong>No photos match these filters.</strong><p>Try a different filename, folder or review status.</p><button type="button" className="secondary" onClick={resetFilters}>Clear filters</button></div>}
       <div className="preview-grid review-grid">
         {visibleItems.map((item) => (
