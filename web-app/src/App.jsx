@@ -16,8 +16,9 @@ import { analyzeVisualPasses } from './visualAnalysis.js';
 import { buildPreviewMovements } from './previewMovement.js';
 import { Icon, PhotoViewer } from './ui.jsx';
 
-const APP_VERSION = '0.6.0';
+const APP_VERSION = '0.6.1';
 const CHANGELOG = [
+  { version: '0.6.1', date: '2026-09-28', changes: ['Suggest new sections after sustained camera turns, including passes with little sideways movement.', 'Check vertical motion and persistent camera headings while preserving manual corrections and the 60-second continuity limit.', 'Calibrated against 17 operator-labeled passes; the remaining long-gap boundary needs manual review.'] },
   { version: '0.6.0', date: '2026-09-28', changes: ['Save and resume reviews locally or from a review file after verifying the original photos.', 'Preserve every photo in collision-safe ZIP exports, with progress, cancellation and smaller parts.', 'Guard altitude inference against metadata discontinuities and improve image matching for small shifts.', 'Keep one browser sorter, with browser workflow tests and no Python installation.'] },
   {
     version: '0.5.0', date: '2026-09-24',
@@ -437,7 +438,7 @@ export default function App() {
 }
 
 const VISUAL_REASON_LABELS = {
-  'no-comparable-photos': 'No nearby pair has similar camera angles and height. Review the GPS-based suggestion yourself.',
+  'no-comparable-photos': 'No nearby pair has similar camera angles and height. Review the suggested boundary in the photos.',
   'unsupported-format': 'Visual comparison supports JPG and PNG photos.',
   'image-too-large': 'This photo exceeds the 64 MiB visual-analysis limit.',
   'browser-unavailable': 'This browser cannot perform the visual comparison.',
@@ -473,7 +474,7 @@ function VisualPassPanel({ result, working, disabled, analyses, movements, overr
     <div className="suggestion-heading"><div><div className="panel-heading"><h2><Icon name="scan" /> Visual pass suggestions</h2><span className="badge">Experimental</span></div><p className="section-description">Missed a marker? Find possible pass boundaries, then review and accept each one.</p></div>
       <div className="button-row"><button type="button" className="secondary" onClick={onAnalyze} disabled={disabled}><Icon name="scan" />{working ? 'Checking photos…' : 'Find pass boundaries'}</button>{working && <button type="button" className="secondary" onClick={onCancel}>Cancel visual analysis</button>}</div>
     </div>
-    <details className="inline-help"><summary>How suggestions work & limitations</summary><p>Find one folder per inspection column using sideways movement, photos, GPS, camera direction and altitude. Suggestions never change folders until you accept them.</p><p>Capture time, GPS, gimbal yaw, pitch and altitude are required. Image checks need overlapping JPG/PNG views at similar angles. Repeated windows, large angle changes or missing metadata can leave passes undetected. Review the full flight before export.</p></details>
+    <details className="inline-help"><summary>How suggestions work & limitations</summary><p>Find one folder per inspection column using sideways movement or sustained camera turns, photos, GPS and altitude. Suggestions never change folders until you accept them.</p><p>Capture time, GPS, gimbal yaw, pitch and altitude are required. Image checks need overlapping JPG/PNG views at similar angles. Repeated windows, large angle changes, capture gaps over 60 seconds or missing metadata can leave passes undetected. Review the full flight before export.</p></details>
     {result && !result.proposals.length && <p className="empty-state">No supported transition candidate was found. This does not mean the flight contains only one pass. Use “Start folder here (keep photo)” in Review photos for missed boundaries.</p>}
     {unconfirmedSweeps > 0 && <p>{unconfirmedSweeps} potential camera sweep {unconfirmedSweeps === 1 ? 'transition lacked' : 'transitions lacked'} supporting image matches and {unconfirmedSweeps === 1 ? 'was' : 'were'} not suggested. Review those boundaries manually.</p>}
     {result?.unchecked > 0 && <p role="status">{result.unchecked} further candidates were not checked because this review is limited to 200. Review those photos manually.</p>}
@@ -484,6 +485,7 @@ function VisualPassPanel({ result, working, disabled, analyses, movements, overr
       {proposal.passEvidence === 'camera-sweep' && <p><strong>Camera sweep at steady height.</strong> This suggestion uses reversed camera tilts, stable GPS positions and supporting image matches. The drone does not need to climb or descend.</p>}
       {proposal.passEvidence === 'tilted-return' && <p><strong>Tilted return pass.</strong> After the sideways move, the camera tilts back along the next column while the drone stays near the same height. Check the photos before accepting; a later marker remains a separate folder boundary.</p>}
       {proposal.passEvidence === 'changed-viewpoint' && <p><strong>Vertical passes at separate positions.</strong> Both passes show sustained vertical motion and stable GPS positions. Camera heading changes by {proposal.headingChangeDegrees.toFixed(1)}°. Check the proposed folder start before accepting.</p>}
+      {proposal.passEvidence === 'heading-change' && <p><strong>Camera turns to a new section.</strong> The heading changes by {proposal.headingChangeDegrees.toFixed(1)}° and stays changed during the following vertical run. A pass can start with little sideways movement, or continue in the same vertical direction after a large turn. Check the new section in the photos before accepting.</p>}
       {proposal.passEvidence === 'partial' && <p><strong>Limited altitude evidence.</strong> Nearby photos do not show a complete preceding vertical pass. Check that the sideways move starts a new inspection column before accepting.</p>}
       {proposal.comparisonBeforeFile && (proposal.comparisonBeforeIndex !== proposal.beforeIndex || proposal.comparisonAfterIndex !== proposal.boundaryIndex)
         && <p>Similar-angle photos used for comparison: {getFileName(proposal.comparisonBeforeFile)} and {getFileName(proposal.comparisonAfterFile)}. The suggested folder start remains {getFileName(proposal.file)}.</p>}
